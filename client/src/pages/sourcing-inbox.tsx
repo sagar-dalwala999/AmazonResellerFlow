@@ -89,6 +89,32 @@ export default function SourcingInbox() {
     },
   });
 
+  // Google Sheets connection test mutation
+  const testConnectionMutation = useMutation({
+    mutationFn: () => apiRequest('/api/integrations/google-sheets/test'),
+    onSuccess: (result: any) => {
+      if (result.success) {
+        toast({
+          title: "Verbindung erfolgreich",
+          description: `Spreadsheet "${result.spreadsheet.title}" gefunden. ${result.spreadsheet.rowCount} Zeilen verfügbar.`,
+        });
+      } else {
+        toast({
+          title: "Verbindungsfehler",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Test fehlgeschlagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Google Sheets import mutation
   const importSheetsMutation = useMutation({
     mutationFn: () => apiRequest('/api/integrations/google-sheets/import', 'POST'),
@@ -205,19 +231,34 @@ export default function SourcingInbox() {
         </div>
         <div className="flex gap-2">
           {isAdmin && (
-            <Button
-              variant="outline"
-              onClick={() => importSheetsMutation.mutate()}
-              disabled={importSheetsMutation.isPending}
-              data-testid="button-import-sheets"
-            >
-              {importSheetsMutation.isPending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              Import from Sheets
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => testConnectionMutation.mutate()}
+                disabled={testConnectionMutation.isPending}
+                data-testid="button-test-sheets"
+              >
+                {testConnectionMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Test Verbindung
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => importSheetsMutation.mutate()}
+                disabled={importSheetsMutation.isPending}
+                data-testid="button-import-sheets"
+              >
+                {importSheetsMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Import from Sheets
+              </Button>
+            </>
           )}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
