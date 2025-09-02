@@ -30,8 +30,8 @@ export class GoogleSheetsService {
   private spreadsheetId: string;
 
   constructor() {
-    // Use the new simplified spreadsheet
-    this.spreadsheetId = "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
+    // Use the original spreadsheet with new simplified format in first tab
+    this.spreadsheetId = "1sF5SRaycdvRichCjdJrIMyPD7RJsQtQ7M7xJfkVODBg";
     this.sheets = null; // Initialize later
   }
 

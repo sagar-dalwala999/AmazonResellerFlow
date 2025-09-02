@@ -408,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/google-sheets/test', async (req, res) => {
     try {
       console.log("🔍 Starting Google Sheets connection test...");
-      const newSpreadsheetId = "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
+      const newSpreadsheetId = "1sF5SRaycdvRichCjdJrIMyPD7RJsQtQ7M7xJfkVODBg";
       console.log("📋 Environment check:", {
         hasSpreadsheetId: true,
         hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
