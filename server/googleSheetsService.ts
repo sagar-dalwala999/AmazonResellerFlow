@@ -239,13 +239,14 @@ export class GoogleSheetsService {
   transformRowForDatabase(row: GoogleSheetsRow, submittedBy: string) {
     const costPrice = parseFloat(row.costPrice);
     
-    // Use calculated values from sheet or derive them
-    const profit = row.profit ? parseFloat(row.profit) : 0;
-    const profitMargin = row.profitMargin ? parseFloat(row.profitMargin) : 0;
-    const roi = row.roi ? parseFloat(row.roi) : 0;
+    // Direkt aus Spreadsheet übernehmen - KEINE Berechnung
+    const profit = row.profit ? parseFloat(row.profit) : null;
+    const profitMargin = row.profitMargin ? parseFloat(row.profitMargin) : null; 
+    const roi = row.roi ? parseFloat(row.roi) : null;
     
-    // Calculate salePrice from profit if not provided
-    const salePrice = costPrice + profit;
+    // Verwende Buy Box Current als Sale Price oder Buy Box Average als Fallback
+    const salePrice = row.buyBoxCurrent ? parseFloat(row.buyBoxCurrent) : 
+                      (row.buyBoxAverage90Days ? parseFloat(row.buyBoxAverage90Days) : costPrice);
 
     return {
       datum: row.datum ? new Date(row.datum) : new Date(),
@@ -260,9 +261,9 @@ export class GoogleSheetsService {
       salePrice: salePrice.toString(),
       buyBoxCurrent: row.buyBoxCurrent ? parseFloat(row.buyBoxCurrent).toString() : null,
       buyBoxAverage90Days: row.buyBoxAverage90Days ? parseFloat(row.buyBoxAverage90Days).toString() : null,
-      profit: profit.toString(),
-      profitMargin: profitMargin.toString(),
-      roi: roi.toString(),
+      profit: profit !== null ? profit.toString() : null,
+      profitMargin: profitMargin !== null ? profitMargin.toString() : null,
+      roi: roi !== null ? roi.toString() : null,
       estimatedSales: row.estimatedSales ? parseInt(row.estimatedSales) : null,
       fbaSellerCount: null, // Not in new structure
       fbmSellerCount: null, // Not in new structure
