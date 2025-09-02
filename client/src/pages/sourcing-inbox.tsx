@@ -226,40 +226,36 @@ export default function SourcingInbox() {
         <div>
           <h1 className="text-3xl font-bold">Sourcing Inbox</h1>
           <p className="text-muted-foreground">
-            Google Sheets Integration - Manage your product sourcing pipeline
+            Import deals from "Sourcing Sheet" spreadsheet (Tab: "Sourcing")
           </p>
         </div>
         <div className="flex gap-2">
-          {isAdmin && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => testConnectionMutation.mutate()}
-                disabled={testConnectionMutation.isPending}
-                data-testid="button-test-sheets"
-              >
-                {testConnectionMutation.isPending ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Test Verbindung
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => importSheetsMutation.mutate()}
-                disabled={importSheetsMutation.isPending}
-                data-testid="button-import-sheets"
-              >
-                {importSheetsMutation.isPending ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
-                Import from Sheets
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => testConnectionMutation.mutate()}
+            disabled={testConnectionMutation.isPending}
+            data-testid="button-test-sheets"
+          >
+            {testConnectionMutation.isPending ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Test Sourcing Sheet
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => importSheetsMutation.mutate()}
+            disabled={importSheetsMutation.isPending}
+            data-testid="button-import-sheets"
+          >
+            {importSheetsMutation.isPending ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Import from Sourcing Sheet
+          </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-sourcing">

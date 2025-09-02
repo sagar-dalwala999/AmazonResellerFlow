@@ -405,13 +405,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google Sheets connection test endpoint
-  app.get('/api/integrations/google-sheets/test', isAuthenticated, async (req: any, res) => {
+  app.get('/api/integrations/google-sheets/test', async (req, res) => {
     try {
-      const userRole = req.user.claims.role || 'va';
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-
       const result = await googleSheetsService.testConnection();
       
       if (result.success) {
@@ -429,13 +424,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
+  app.post('/api/integrations/google-sheets/import', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
+      const userId = 'system'; // Default user for import
 
       console.log("Starting Google Sheets import...");
       

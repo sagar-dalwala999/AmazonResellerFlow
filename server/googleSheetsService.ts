@@ -67,10 +67,15 @@ export class GoogleSheetsService {
 
       const spreadsheet = metadataResponse.data;
 
-      // Second test - try to read some data
+      // Second test - try to read headers and data from Sourcing tab
+      const headerResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'Sourcing!A1:AB1', // Headers
+      });
+      
       const dataResponse = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'A1:AB10', // Test first 10 rows
+        range: 'Sourcing!A2:AB10', // Data rows 2-10
       });
 
       return {
@@ -79,9 +84,10 @@ export class GoogleSheetsService {
           title: spreadsheet.properties?.title,
           sheets: spreadsheet.sheets?.map((s: any) => s.properties?.title) || [],
           rowCount: dataResponse.data.values?.length || 0,
-          hasData: dataResponse.data.values && dataResponse.data.values.length > 1,
-          headers: dataResponse.data.values?.[0] || [],
-          firstRow: dataResponse.data.values?.[1] || []
+          hasData: dataResponse.data.values && dataResponse.data.values.length > 0,
+          headers: headerResponse.data.values?.[0] || [],
+          firstRow: dataResponse.data.values?.[0] || [],
+          sourcingTabFound: spreadsheet.sheets?.some((s: any) => s.properties?.title === 'Sourcing') || false
         }
       };
     } catch (error: any) {
@@ -93,7 +99,7 @@ export class GoogleSheetsService {
     }
   }
 
-  async fetchSheetData(range: string = "A:AB"): Promise<GoogleSheetsRow[]> {
+  async fetchSheetData(range: string = "Sourcing!A2:AB"): Promise<GoogleSheetsRow[]> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
