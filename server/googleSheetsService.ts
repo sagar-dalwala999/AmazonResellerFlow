@@ -30,11 +30,8 @@ export class GoogleSheetsService {
   private spreadsheetId: string;
 
   constructor() {
-    if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID) {
-      throw new Error("GOOGLE_SHEETS_SPREADSHEET_ID environment variable is required");
-    }
-    
-    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    // Use the new simplified spreadsheet
+    this.spreadsheetId = "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
     this.sheets = null; // Initialize later
   }
 
@@ -79,15 +76,15 @@ export class GoogleSheetsService {
 
       const spreadsheet = metadataResponse.data;
 
-      // Second test - try to read headers and data from Sourcing tab
+      // Second test - try to read headers and data from Sheet1 (simplified format)
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A1:AB1', // Headers
+        range: 'Sheet1!A1:P1', // Headers (simplified to 16 columns)
       });
       
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A2:AB10', // Data rows 2-10
+        range: 'Sheet1!A2:P20', // Data rows 2-20
       });
 
       return {
@@ -99,7 +96,7 @@ export class GoogleSheetsService {
           hasData: dataResponse.data.values && dataResponse.data.values.length > 0,
           headers: headerResponse.data.values?.[0] || [],
           firstRow: dataResponse.data.values?.[0] || [],
-          sourcingTabFound: spreadsheet.sheets?.some((s: any) => s.properties?.title === 'Sourcing') || false
+          sourcingTabFound: spreadsheet.sheets?.some((s: any) => s.properties?.title === 'Sheet1') || false
         }
       };
     } catch (error: any) {
@@ -301,16 +298,16 @@ export class GoogleSheetsService {
     try {
       const sheets = await this.getSheets();
       
-      // Get headers
+      // Get headers from simplified sheet
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A1:AB1',
+        range: 'Sheet1!A1:P1',
       });
       
-      // Get data
+      // Get data from simplified sheet
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A2:AB',
+        range: 'Sheet1!A2:P',
       });
 
       const headers = headerResponse.data.values?.[0] || [];

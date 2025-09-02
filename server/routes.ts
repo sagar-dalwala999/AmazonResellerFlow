@@ -498,68 +498,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const cleaned = items
         .map((raw, index) => {
-          const date        = pick(raw, "Datum", "Export Date (UTC yyyy-mm-dd)", "Export Date");
-          const imageUrl    = pick(raw, "Image URL");
-          const brand       = pick(raw, "Brand");
-          const productName = pick(raw, "Product Name", "Produktname");
-          const asin        = pick(raw, "ASIN");
-          const eanBarcode  = pick(raw, "EAN Barcode", "EAN/Barcode");
-          const sourceUrl   = pick(raw, "Source URL");
-          const amazonUrl   = pick(raw, "Amazon URL");
-          const costPrice   = parseMoneySmart(pick(raw, "Cost Price"));
-          const salePrice   = parseMoneySmart(pick(raw, "Sale Price"));
-          const profit      = parseMoneySmart(pick(raw, "Profit"));
-          const profitMargin= parsePercentMaybe(pick(raw, "Profit Margin"));
-          const review      = pick(raw, "Product Review");
-          const notes       = pick(raw, "Notes");
-          const sourcingMethod = pick(raw, "Sourcing Method");
+          // New simplified column mapping
+          const date         = pick(raw, "Export Date (UTC yyyy-mm-dd)");
+          const asin         = pick(raw, "ASIN");
+          const quantity     = pick(raw, "Quantity");
+          const sourceUrl    = pick(raw, "Source URL");
+          const tags         = pick(raw, "Tags");
+          const notes        = pick(raw, "All Notes");
+          const costPrice    = parseMoneySmart(pick(raw, "Cost Price"));
+          const salePrice    = parseMoneySmart(pick(raw, "Sale Price"));
+          const marketplace  = pick(raw, "Sales Marketplace");
+          const estimatedSalesStr = pick(raw, "Estimated Sales");
 
-          // Zeilen, die wirklich leer sind, überspringen
-          const allEmpty = [date, brand, productName, asin, sourceUrl, amazonUrl].every(v => !String(v || "").trim());
+          // Skip completely empty rows
+          const allEmpty = [asin, sourceUrl, costPrice, salePrice].every(v => !String(v || "").trim());
           if (allEmpty) return null;
 
-          // Fallback für fehlenden Produktnamen
-          let name = String(productName || "").trim();
-          if (!name) {
-            const b = String(brand || "").trim();
-            const a = String(asin || "").trim();
-            if (b || a) name = [b, a].filter(Boolean).join(" · ");
-            else return null; // ohne Name UND ohne Brand/ASIN überspringen
-          }
-
-          // ASIN ist erforderlich
+          // ASIN is required
           if (!String(asin || "").trim()) {
             console.log(`⚠️ Row ${index + 2}: Skipping - no ASIN`);
             return null;
           }
 
           // Parse numeric values safely
-          const estimatedSalesNum = parseNumericValue(pick(raw, "Estimated Sales"));
-          const fbaSellerCountNum = parseNumericValue(pick(raw, "FBA Seller Count"));
-          const fbmSellerCountNum = parseNumericValue(pick(raw, "FBM Seller Count"));
+          const estimatedSalesNum = parseNumericValue(estimatedSalesStr);
+          const profit = salePrice - costPrice;
+
+          // Generate a simple product name from ASIN if not available
+          const productName = `Product ${String(asin).trim()}`;
 
           return {
             datum: date ? new Date(date) : new Date(),
-            imageUrl: imageUrl || null,
-            brand: brand || null,
-            productName: name,
+            imageUrl: null,
+            brand: null, // Not available in simplified format
+            productName: productName,
             asin: String(asin).trim(),
-            eanBarcode: eanBarcode || null,
+            eanBarcode: null,
             sourceUrl: sourceUrl || null,
-            amazonUrl: amazonUrl || null,
+            amazonUrl: null,
             costPrice: costPrice.toString(),
             salePrice: salePrice.toString(),
             profit: profit.toString(),
-            profitMargin: profitMargin?.toString() || null,
+            profitMargin: salePrice > 0 ? ((profit / salePrice) * 100).toString() : "0",
             roi: costPrice > 0 ? ((profit / costPrice) * 100).toString() : "0",
             estimatedSales: estimatedSalesNum?.toString() || null,
-            fbaSellerCount: fbaSellerCountNum?.toString() || null,
-            fbmSellerCount: fbmSellerCountNum?.toString() || null,
-            productReview: review || null,
-            notes: notes || null,
-            sourcingMethod: sourcingMethod || 'google-sheets',
+            fbaSellerCount: null,
+            fbmSellerCount: null,
+            productReview: null,
+            notes: [
+              notes,
+              quantity ? `Menge: ${quantity}` : null,
+              tags ? `Tags: ${tags}` : null, 
+              marketplace ? `Marktplatz: ${marketplace}` : null
+            ].filter(Boolean).join(' | ') || null,
+            sourcingMethod: 'google-sheets-simplified',
             submittedBy: userId,
-            status: 'new',
+            status: 'new'
           };
         })
         .filter(Boolean) as any[];
