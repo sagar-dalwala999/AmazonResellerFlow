@@ -1,0 +1,69 @@
+app.get("/api/sourcing/import", async (_req, res) => {
+  try {
+    const { headers, items } = await readSourcingSheet();
+
+    // Header-Normalisierung (trim + lower)
+    const norm = (s: any) => String(s || "").trim();
+    const has = (h: string) => headers.some(x => norm(x).toLowerCase() === norm(h).toLowerCase());
+    const pick = (row: Record<string,string>, ...aliases: string[]) => {
+      for (const a of aliases) {
+        const key = Object.keys(row).find(k => norm(k).toLowerCase() === norm(a).toLowerCase());
+        if (key) return row[key];
+      }
+      return "";
+    };
+
+    const cleaned = items
+      .map((raw) => {
+        const date        = pick(raw, "Datum", "Export Date (UTC yyyy-mm-dd)", "Export Date");
+        const brand       = pick(raw, "Brand");
+        const productName = pick(raw, "Product Name", "Produktname");
+        const asin        = pick(raw, "ASIN");
+        const sourceUrl   = pick(raw, "Source URL");
+        const amazonUrl   = pick(raw, "Amazon URL");
+        const costPrice   = parseMoneySmart(pick(raw, "Cost Price"));
+        const salePrice   = parseMoneySmart(pick(raw, "Sale Price"));
+        const profit      = parseMoneySmart(pick(raw, "Profit"));
+        const profitMargin= parsePercentMaybe(pick(raw, "Profit Margin"));
+        const review      = pick(raw, "Product Review");
+        const status      = pick(raw, "Status");
+
+        // Zeilen, die wirklich leer sind, überspringen
+        const allEmpty = [date, brand, productName, asin, sourceUrl, amazonUrl].every(v => !String(v || "").trim());
+        if (allEmpty) return null;
+
+        // Fallback für fehlenden Produktnamen
+        let name = String(productName || "").trim();
+        if (!name) {
+          const b = String(brand || "").trim();
+          const a = String(asin || "").trim();
+          if (b || a) name = [b, a].filter(Boolean).join(" · ");
+          else return null; // ohne Name UND ohne Brand/ASIN überspringen
+        }
+
+        return {
+          date,
+          brand,
+          productName: name,
+          asin,
+          sourceUrl,
+          amazonUrl,
+          costPrice,
+          salePrice,
+          profit,
+          profitMargin,
+          review,
+          status,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    res.json({ success: true, count: cleaned.length, items: cleaned });
+  } catch (e: any) {
+    res.status(500).json({
+      success: false,
+      message: `Google Sheets Import fehlgeschlagen: ${e?.message || e}`,
+      errors: [String(e?.message || e)],
+    });
+  }
+});

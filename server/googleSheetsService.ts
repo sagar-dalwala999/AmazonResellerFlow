@@ -273,6 +273,77 @@ export class GoogleSheetsService {
       submittedBy,
     };
   }
+  // Utility functions for parsing
+  parseMoneySmart(value: string): number {
+    if (!value) return 0;
+    // Remove currency symbols, spaces, and convert German decimal separators
+    const cleanValue = String(value)
+      .replace(/[€$£¥₹]/g, '')
+      .replace(/\s/g, '')
+      .replace(/,/g, '.');
+    
+    return parseFloat(cleanValue) || 0;
+  }
+
+  parsePercentMaybe(value: string): number | null {
+    if (!value) return null;
+    // Remove % symbol and spaces, convert German decimal separators
+    const cleanValue = String(value)
+      .replace(/%/g, '')
+      .replace(/\s/g, '')
+      .replace(/,/g, '.');
+    
+    const parsed = parseFloat(cleanValue);
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  async readSourcingSheet(): Promise<{ headers: string[], items: Record<string, string>[] }> {
+    try {
+      const sheets = await this.getSheets();
+      
+      // Get headers
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'Sourcing!A1:AB1',
+      });
+      
+      // Get data
+      const dataResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'Sourcing!A2:AB',
+      });
+
+      const headers = headerResponse.data.values?.[0] || [];
+      const rows = dataResponse.data.values || [];
+
+      // Convert rows to objects with header keys
+      const items = rows.map((row: string[]) => {
+        const item: Record<string, string> = {};
+        headers.forEach((header: string, index: number) => {
+          item[header] = row[index] || '';
+        });
+        return item;
+      });
+
+      return { headers, items };
+    } catch (error) {
+      console.error("Error reading sourcing sheet:", error);
+      throw error;
+    }
+  }
+}
+
+// Export utility functions for external use
+export function parseMoneySmart(value: string): number {
+  return googleSheetsService.parseMoneySmart(value);
+}
+
+export function parsePercentMaybe(value: string): number | null {
+  return googleSheetsService.parsePercentMaybe(value);
+}
+
+export async function readSourcingSheet() {
+  return googleSheetsService.readSourcingSheet();
 }
 
 export const googleSheetsService = new GoogleSheetsService();
