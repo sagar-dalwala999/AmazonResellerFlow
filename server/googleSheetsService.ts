@@ -76,15 +76,26 @@ export class GoogleSheetsService {
 
       const spreadsheet = metadataResponse.data;
 
-      // Second test - try to read headers and data from Sourcing tab
+      // Get all sheet names to find the correct one
+      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
+      console.log(`📋 Available sheet names: ${sheetNames.join(", ")}`);
+      
+      // Try to find the correct sheet name - could be "Sourcing Sheet" or first sheet
+      let sheetName = sheetNames.find((name: string) => 
+        name.toLowerCase().includes('sourcing')
+      ) || sheetNames[0] || 'Sheet1';
+      
+      console.log(`🎯 Using sheet: "${sheetName}"`);
+
+      // Second test - try to read headers and data from correct sheet
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A1:AB1', // Headers
+        range: `'${sheetName}'!A1:P1`, // Headers (16 columns)
       });
       
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A2:AB10', // Data rows 2-10
+        range: `'${sheetName}'!A2:P10`, // Data rows 2-10 (16 columns)
       });
 
       return {
@@ -301,16 +312,31 @@ export class GoogleSheetsService {
     try {
       const sheets = await this.getSheets();
       
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+      
+      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+      console.log(`📋 Available sheets: ${sheetNames.join(", ")}`);
+      
+      // Find the correct sheet name
+      let sheetName = sheetNames.find((name: string) => 
+        name.toLowerCase().includes('sourcing')
+      ) || sheetNames[0] || 'Sheet1';
+      
+      console.log(`🎯 Reading from sheet: "${sheetName}"`);
+
       // Get headers (16 columns: A-P)
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A1:P1',
+        range: `'${sheetName}'!A1:P1`,
       });
       
       // Get data (16 columns: A-P)
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A2:P',
+        range: `'${sheetName}'!A2:P`,
       });
 
       const headers = headerResponse.data.values?.[0] || [];
