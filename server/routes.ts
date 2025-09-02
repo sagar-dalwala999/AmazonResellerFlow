@@ -481,11 +481,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/integrations/google-sheets/import', async (_req, res) => {
     try {
+      const userId = 'system'; // Default user for import
       const { headers, items } = await readSourcingSheet();
+
+      console.log(`🔍 Found ${items.length} total rows in Google Sheets`);
 
       // Header-Normalisierung (trim + lower)
       const norm = (s: any) => String(s || "").trim();
-      const has = (h: string) => headers.some(x => norm(x).toLowerCase() === norm(h).toLowerCase());
       const pick = (row: Record<string,string>, ...aliases: string[]) => {
         for (const a of aliases) {
           const key = Object.keys(row).find(k => norm(k).toLowerCase() === norm(a).toLowerCase());
@@ -495,11 +497,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const cleaned = items
-        .map((raw) => {
+        .map((raw, index) => {
           const date        = pick(raw, "Datum", "Export Date (UTC yyyy-mm-dd)", "Export Date");
+          const imageUrl    = pick(raw, "Image URL");
           const brand       = pick(raw, "Brand");
           const productName = pick(raw, "Product Name", "Produktname");
           const asin        = pick(raw, "ASIN");
+          const eanBarcode  = pick(raw, "EAN Barcode", "EAN/Barcode");
           const sourceUrl   = pick(raw, "Source URL");
           const amazonUrl   = pick(raw, "Amazon URL");
           const costPrice   = parseMoneySmart(pick(raw, "Cost Price"));
@@ -507,7 +511,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const profit      = parseMoneySmart(pick(raw, "Profit"));
           const profitMargin= parsePercentMaybe(pick(raw, "Profit Margin"));
           const review      = pick(raw, "Product Review");
-          const status      = pick(raw, "Status");
+          const notes       = pick(raw, "Notes");
+          const sourcingMethod = pick(raw, "Sourcing Method");
 
           // Zeilen, die wirklich leer sind, überspringen
           const allEmpty = [date, brand, productName, asin, sourceUrl, amazonUrl].every(v => !String(v || "").trim());
@@ -522,25 +527,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
             else return null; // ohne Name UND ohne Brand/ASIN überspringen
           }
 
+          // ASIN ist erforderlich
+          if (!String(asin || "").trim()) {
+            console.log(`⚠️ Row ${index + 2}: Skipping - no ASIN`);
+            return null;
+          }
+
           return {
-            date,
-            brand,
+            datum: date ? new Date(date) : new Date(),
+            imageUrl: imageUrl || null,
+            brand: brand || null,
             productName: name,
-            asin,
-            sourceUrl,
-            amazonUrl,
-            costPrice,
-            salePrice,
-            profit,
-            profitMargin,
-            review,
-            status,
+            asin: String(asin).trim(),
+            eanBarcode: eanBarcode || null,
+            sourceUrl: sourceUrl || null,
+            amazonUrl: amazonUrl || null,
+            costPrice: costPrice.toString(),
+            salePrice: salePrice.toString(),
+            profit: profit.toString(),
+            profitMargin: profitMargin?.toString() || null,
+            roi: costPrice > 0 ? ((profit / costPrice) * 100).toString() : "0",
+            estimatedSales: null,
+            fbaSellerCount: null,
+            fbmSellerCount: null,
+            productReview: review || null,
+            notes: notes || null,
+            sourcingMethod: sourcingMethod || 'google-sheets',
+            submittedBy: userId,
+            status: 'new',
           };
         })
         .filter(Boolean) as any[];
 
-      res.json({ success: true, count: cleaned.length, items: cleaned });
+      console.log(`✅ Processed ${cleaned.length} valid rows`);
+
+      let importedCount = 0;
+      const errors: string[] = [];
+
+      // Save each item to database
+      for (let i = 0; i < cleaned.length; i++) {
+        const item = cleaned[i];
+        const rowNumber = i + 2; // +2 because we skipped header and are 1-indexed
+
+        try {
+          // Check if ASIN already exists to avoid duplicates
+          const existingSourcing = await storage.getSourcingByAsin(item.asin);
+          if (existingSourcing) {
+            console.log(`⚠️ Row ${rowNumber}: Skipping duplicate ASIN ${item.asin}`);
+            continue;
+          }
+
+          // Save to database
+          await storage.createSourcing(item);
+          importedCount++;
+          console.log(`✅ Row ${rowNumber}: Imported ${item.productName} (${item.asin})`);
+
+        } catch (error) {
+          console.error(`❌ Row ${rowNumber}: Error saving ${item.productName}:`, error);
+          errors.push(`Zeile ${rowNumber}: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+        }
+      }
+
+      // Log activity
+      await storage.logActivity({
+        userId,
+        action: 'google_sheets_import',
+        entityType: 'sourcing',
+        entityId: 'bulk_import',
+        description: `Google Sheets Import: ${importedCount} Deals importiert`,
+      });
+
+      console.log(`🎉 Import completed: ${importedCount}/${cleaned.length} items saved`);
+
+      res.json({
+        success: true,
+        message: `Import abgeschlossen: ${importedCount} von ${cleaned.length} Zeilen importiert`,
+        importedRows: importedCount,
+        totalRows: cleaned.length,
+        skippedDuplicates: cleaned.length - importedCount - errors.length,
+        errors: errors.slice(0, 10) // Limit errors to first 10
+      });
+
     } catch (e: any) {
+      console.error("❌ Google Sheets import error:", e);
       res.status(500).json({
         success: false,
         message: `Google Sheets Import fehlgeschlagen: ${e?.message || e}`,
