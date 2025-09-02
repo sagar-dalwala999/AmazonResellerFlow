@@ -1,3 +1,6 @@
+import { google } from 'googleapis';
+import * as path from 'path';
+
 interface GoogleSheetsRow {
   datum?: string;
   imageUrl?: string;
@@ -19,33 +22,69 @@ interface GoogleSheetsRow {
 }
 
 export class GoogleSheetsService {
-  private apiKey: string;
+  private sheets: any;
   private spreadsheetId: string;
 
   constructor() {
-    if (!process.env.GOOGLE_SHEETS_API_KEY) {
-      throw new Error("GOOGLE_SHEETS_API_KEY environment variable is required");
-    }
     if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID) {
       throw new Error("GOOGLE_SHEETS_SPREADSHEET_ID environment variable is required");
     }
     
-    this.apiKey = process.env.GOOGLE_SHEETS_API_KEY;
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    
+    // Load service account credentials
+    const credentialsPath = path.join(__dirname, 'googleSheetsCredentials.json');
+    const auth = new google.auth.GoogleAuth({
+      keyFile: credentialsPath,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    this.sheets = google.sheets({ version: 'v4', auth });
+  }
+
+  async testConnection(): Promise<{ success: boolean; spreadsheet?: any; error?: string }> {
+    try {
+      // First test - get spreadsheet metadata
+      const metadataResponse = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const spreadsheet = metadataResponse.data;
+
+      // Second test - try to read some data
+      const dataResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: 'A1:AB10', // Test first 10 rows
+      });
+
+      return {
+        success: true,
+        spreadsheet: {
+          title: spreadsheet.properties?.title,
+          sheets: spreadsheet.sheets?.map((s: any) => s.properties?.title) || [],
+          rowCount: dataResponse.data.values?.length || 0,
+          hasData: dataResponse.data.values && dataResponse.data.values.length > 1,
+          headers: dataResponse.data.values?.[0] || [],
+          firstRow: dataResponse.data.values?.[1] || []
+        }
+      };
+    } catch (error: any) {
+      console.error("Google Sheets connection test failed:", error);
+      return {
+        success: false,
+        error: error.message || 'Unknown connection error'
+      };
+    }
   }
 
   async fetchSheetData(range: string = "A:AB"): Promise<GoogleSheetsRow[]> {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values/${range}?key=${this.apiKey}`;
-    
     try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Google Sheets API error: ${response.status} - ${errorText}`);
-      }
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: range,
+      });
 
-      const data = await response.json();
+      const data = response.data;
       
       if (!data.values || data.values.length === 0) {
         return [];

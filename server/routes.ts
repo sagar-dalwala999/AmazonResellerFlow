@@ -412,61 +412,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
-      const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-
-      if (!apiKey || !spreadsheetId) {
-        return res.status(400).json({
-          success: false,
-          error: "Google Sheets API-Schlüssel oder Spreadsheet ID nicht gefunden",
-          details: {
-            hasApiKey: !!apiKey,
-            hasSpreadsheetId: !!spreadsheetId
-          }
-        });
-      }
-
-      // Test basic spreadsheet access
-      const testUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${apiKey}`;
-      const response = await fetch(testUrl);
+      const result = await googleSheetsService.testConnection();
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        return res.status(400).json({
-          success: false,
-          error: `Google Sheets API Fehler: ${response.status}`,
-          details: errorText
-        });
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
       }
-
-      const data = await response.json();
-      
-      // Test data retrieval
-      const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:AB10?key=${apiKey}`;
-      const dataResponse = await fetch(dataUrl);
-      
-      if (!dataResponse.ok) {
-        const errorText = await dataResponse.text();
-        return res.status(400).json({
-          success: false,
-          error: `Fehler beim Abrufen der Daten: ${dataResponse.status}`,
-          details: errorText
-        });
-      }
-
-      const dataResult = await dataResponse.json();
-
-      res.json({
-        success: true,
-        spreadsheet: {
-          title: data.properties?.title,
-          sheets: data.sheets?.map((s: any) => s.properties.title) || [],
-          rowCount: dataResult.values?.length || 0,
-          hasData: dataResult.values && dataResult.values.length > 1,
-          headers: dataResult.values?.[0] || [],
-          firstRow: dataResult.values?.[1] || []
-        }
-      });
 
     } catch (error) {
       console.error("Google Sheets test error:", error);
