@@ -65,6 +65,34 @@ export class GoogleSheetsService {
     return this.sheets;
   }
 
+  private quoteSheet(title: string) {
+    // immer sicher quoten (auch wenn keine Leerzeichen)
+    // ' im Titel wird durch '' escaped
+    const safe = String(title).replace(/'/g, "''");
+    return `'${safe}'`;
+  }
+
+  private async resolveSheetTitle(sheets: any, wanted?: string) {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: this.spreadsheetId });
+    const tabs = meta.data.sheets?.map((s: any) => s.properties?.title || "") || [];
+    
+    console.log(`📋 Available tabs: ${tabs.join(", ")}`);
+    
+    if (wanted) {
+      const hit = tabs.find((t: string) => t.trim().toLowerCase() === wanted.trim().toLowerCase());
+      if (!hit) {
+        throw new Error(`Tab "${wanted}" not found. Available: ${tabs.join(", ")}`);
+      }
+      console.log(`✅ Found requested tab: "${hit}"`);
+      return hit;
+    }
+    
+    // fallback: nimm den ersten Tab
+    if (!tabs.length) throw new Error("Spreadsheet has no sheets/tabs");
+    console.log(`🔄 Using first available tab: "${tabs[0]}"`);
+    return tabs[0];
+  }
+
   async testConnection(): Promise<{ success: boolean; spreadsheet?: any; error?: string }> {
     try {
       const sheets = await this.getSheets();
@@ -75,16 +103,20 @@ export class GoogleSheetsService {
       });
 
       const spreadsheet = metadataResponse.data;
+      
+      // Dynamically resolve sheet title - try "Sourcing" first, then fallback to first tab
+      const sheetTitle = await this.resolveSheetTitle(sheets, "Sourcing");
+      const quotedTitle = this.quoteSheet(sheetTitle);
 
-      // Second test - try to read headers and data from Sheet1 (simplified format)
+      // Second test - try to read headers and data using resolved sheet name
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sheet1!A1:P1', // Headers (simplified to 16 columns)
+        range: `${quotedTitle}!A1:P1`, // Headers (simplified to 16 columns)
       });
       
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sheet1!A2:P20', // Data rows 2-20
+        range: `${quotedTitle}!A2:P20`, // Data rows 2-20
       });
 
       return {
@@ -92,11 +124,12 @@ export class GoogleSheetsService {
         spreadsheet: {
           title: spreadsheet.properties?.title,
           sheets: spreadsheet.sheets?.map((s: any) => s.properties?.title) || [],
+          resolvedSheetTitle: sheetTitle,
           rowCount: dataResponse.data.values?.length || 0,
           hasData: dataResponse.data.values && dataResponse.data.values.length > 0,
           headers: headerResponse.data.values?.[0] || [],
           firstRow: dataResponse.data.values?.[0] || [],
-          sourcingTabFound: spreadsheet.sheets?.some((s: any) => s.properties?.title === 'Sheet1') || false
+          sourcingTabFound: true // We successfully resolved a sheet
         }
       };
     } catch (error: any) {
@@ -298,16 +331,20 @@ export class GoogleSheetsService {
     try {
       const sheets = await this.getSheets();
       
-      // Get headers from simplified sheet
+      // Dynamically resolve sheet title
+      const sheetTitle = await this.resolveSheetTitle(sheets, "Sourcing");
+      const quotedTitle = this.quoteSheet(sheetTitle);
+      
+      // Get headers from resolved sheet
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sheet1!A1:P1',
+        range: `${quotedTitle}!A1:P1`,
       });
       
-      // Get data from simplified sheet
+      // Get data from resolved sheet
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sheet1!A2:P',
+        range: `${quotedTitle}!A2:P`,
       });
 
       const headers = headerResponse.data.values?.[0] || [];
