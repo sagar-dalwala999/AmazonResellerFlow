@@ -599,12 +599,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`🎉 Import completed: ${importedCount}/${cleaned.length} items saved`);
 
+      // Verify data was saved
+      const allSourcing = await storage.getSourcing({ limit: 100 });
+      console.log(`📊 Database now contains ${allSourcing.length} sourcing items`);
+
       res.json({
         success: true,
         message: `Import abgeschlossen: ${importedCount} von ${cleaned.length} Zeilen importiert`,
         importedRows: importedCount,
         totalRows: cleaned.length,
         skippedDuplicates: cleaned.length - importedCount - errors.length,
+        databaseCount: allSourcing.length,
         errors: errors.slice(0, 10) // Limit errors to first 10
       });
 

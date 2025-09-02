@@ -160,18 +160,16 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(sourcing.submittedBy, submittedBy));
     }
 
-    let query = db
+    const baseQuery = db
       .select()
       .from(sourcing)
       .leftJoin(users, eq(sourcing.submittedBy, users.id))
       .orderBy(desc(sourcing.createdAt))
       .limit(limit);
     
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    const results = await query;
+    const results = conditions.length > 0 
+      ? await baseQuery.where(and(...conditions))
+      : await baseQuery;
 
     return results.map(row => ({
       ...row.sourcing,
@@ -251,18 +249,16 @@ export class DatabaseStorage implements IStorage {
   async getPurchasingPlans(options: { status?: string; limit?: number } = {}): Promise<PurchasingPlanWithRelations[]> {
     const { status, limit = 50 } = options;
 
-    let query = db
+    const baseQuery = db
       .select()
       .from(purchasingPlans)
       .leftJoin(sourcing, eq(purchasingPlans.sourcingId, sourcing.id))
       .orderBy(desc(purchasingPlans.createdAt))
       .limit(limit);
 
-    if (status) {
-      query = query.where(eq(purchasingPlans.status, status as any));
-    }
-
-    const results = await query;
+    const results = status 
+      ? await baseQuery.where(eq(purchasingPlans.status, status as any))
+      : await baseQuery;
 
     return results.map(row => ({
       ...row.purchasing_plans,
