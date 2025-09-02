@@ -9,6 +9,7 @@ import SourcingInbox from "@/pages/sourcing-inbox";
 import PurchasingPlanner from "@/pages/purchasing-planner";
 import ListingBuilder from "@/pages/listing-builder";
 import VAPerformance from "@/pages/va-performance";
+import APISettings from "@/pages/api-settings";
 import DealSubmission from "@/pages/deal-submission";
 import DealEvaluation from "@/pages/deal-evaluation";
 import Purchasing from "@/pages/purchasing";
@@ -37,6 +38,7 @@ function Router() {
           <Route path="/purchasing" component={PurchasingPlanner} />
           <Route path="/listings" component={ListingBuilder} />
           <Route path="/performance" component={VAPerformance} />
+          <Route path="/api-settings" component={APISettings} />
           <Route path="/deals/submit" component={DealSubmission} />
           <Route path="/deals/evaluate" component={DealEvaluation} />
           <Route path="/legacy/purchasing" component={Purchasing} />

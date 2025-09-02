@@ -11,6 +11,7 @@ export default function Sidebar() {
     { href: '/purchasing', icon: 'fas fa-shopping-cart', label: 'Purchasing Planner', roles: ['admin'] },
     { href: '/listings', icon: 'fas fa-barcode', label: 'Listing Builder', roles: ['admin'] },
     { href: '/performance', icon: 'fas fa-chart-line', label: 'VA Performance', roles: ['admin', 'va'] },
+    { href: '/api-settings', icon: 'fas fa-key', label: 'API-Einstellungen', roles: ['admin'] },
   ];
 
   const filteredItems = navigationItems.filter(item => 

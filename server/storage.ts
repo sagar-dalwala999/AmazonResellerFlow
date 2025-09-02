@@ -32,6 +32,7 @@ export interface IStorage {
   createSourcing(sourcing: InsertSourcing): Promise<Sourcing>;
   getSourcing(options?: { status?: string; submittedBy?: string; limit?: number }): Promise<SourcingWithRelations[]>;
   getSourcingItem(id: string): Promise<SourcingWithRelations | undefined>;
+  getSourcingByAsin(asin: string): Promise<SourcingWithRelations | undefined>;
   updateSourcingStatus(id: string, status: string, reviewedBy?: string, reviewNotes?: string): Promise<void>;
   getSourcingStats(): Promise<{
     total: number;
@@ -151,13 +152,6 @@ export class DatabaseStorage implements IStorage {
   async getSourcing(options: { status?: string; submittedBy?: string; limit?: number } = {}): Promise<SourcingWithRelations[]> {
     const { status, submittedBy, limit = 50 } = options;
 
-    let query = db
-      .select()
-      .from(sourcing)
-      .leftJoin(users, eq(sourcing.submittedBy, users.id))
-      .orderBy(desc(sourcing.createdAt))
-      .limit(limit);
-
     const conditions = [];
     if (status) {
       conditions.push(eq(sourcing.status, status as any));
@@ -165,6 +159,13 @@ export class DatabaseStorage implements IStorage {
     if (submittedBy) {
       conditions.push(eq(sourcing.submittedBy, submittedBy));
     }
+
+    let query = db
+      .select()
+      .from(sourcing)
+      .leftJoin(users, eq(sourcing.submittedBy, users.id))
+      .orderBy(desc(sourcing.createdAt))
+      .limit(limit);
     
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
@@ -184,6 +185,21 @@ export class DatabaseStorage implements IStorage {
       .from(sourcing)
       .leftJoin(users, eq(sourcing.submittedBy, users.id))
       .where(eq(sourcing.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.sourcing,
+      submitter: result.users || undefined,
+    };
+  }
+
+  async getSourcingByAsin(asin: string): Promise<SourcingWithRelations | undefined> {
+    const [result] = await db
+      .select()
+      .from(sourcing)
+      .leftJoin(users, eq(sourcing.submittedBy, users.id))
+      .where(eq(sourcing.asin, asin));
 
     if (!result) return undefined;
 

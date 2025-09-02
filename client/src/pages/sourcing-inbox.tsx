@@ -50,7 +50,7 @@ export default function SourcingInbox() {
 
   // Add sourcing mutation
   const addSourcingMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/sourcing', { method: 'POST', body: data }),
+    mutationFn: (data: any) => apiRequest('/api/sourcing', 'POST', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
       setIsAddDialogOpen(false);
@@ -72,7 +72,7 @@ export default function SourcingInbox() {
   // Update status mutation (admin only)
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status, reviewNotes }: { id: string; status: string; reviewNotes?: string }) =>
-      apiRequest(`/api/sourcing/${id}/status`, { method: 'PATCH', body: { status, reviewNotes } }),
+      apiRequest(`/api/sourcing/${id}/status`, 'PATCH', { status, reviewNotes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
       toast({
@@ -89,19 +89,28 @@ export default function SourcingInbox() {
     },
   });
 
-  // Google Sheets import mutation (mock)
+  // Google Sheets import mutation
   const importSheetsMutation = useMutation({
-    mutationFn: () => apiRequest('/api/integrations/google-sheets/import', { method: 'POST' }),
-    onSuccess: (result) => {
+    mutationFn: () => apiRequest('/api/integrations/google-sheets/import', 'POST'),
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
-      toast({
-        title: "Import Complete",
-        description: `Imported ${result.importedRows} rows from Google Sheets`,
-      });
+      
+      if (result.errors && result.errors.length > 0) {
+        toast({
+          title: "Import mit Warnungen",
+          description: `${result.importedRows} von ${result.totalRows} Zeilen importiert. ${result.errors.length} Fehler gefunden.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Import erfolgreich",
+          description: `${result.importedRows} Deals aus Google Sheets importiert`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
-        title: "Import Error",
+        title: "Import-Fehler",
         description: error.message,
         variant: "destructive",
       });
@@ -143,7 +152,7 @@ export default function SourcingInbox() {
     const statusConfig = {
       new: { label: "New", variant: "secondary" as const, icon: Clock },
       under_review: { label: "Under Review", variant: "default" as const, icon: Eye },
-      winner: { label: "Winner", variant: "success" as const, icon: CheckCircle },
+      winner: { label: "Winner", variant: "default" as const, icon: CheckCircle },
       no_go: { label: "No-Go", variant: "destructive" as const, icon: XCircle },
     };
     
@@ -262,7 +271,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>Brand</FormLabel>
                           <FormControl>
-                            <Input {...field} data-testid="input-brand" />
+                            <Input {...field} value={field.value || ''} data-testid="input-brand" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -276,7 +285,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>EAN/Barcode</FormLabel>
                           <FormControl>
-                            <Input {...field} data-testid="input-ean" />
+                            <Input {...field} value={field.value || ''} data-testid="input-ean" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -388,7 +397,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>Sourcing Method</FormLabel>
                           <FormControl>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || ''}>
                               <SelectTrigger data-testid="select-sourcing-method">
                                 <SelectValue placeholder="Select method" />
                               </SelectTrigger>
@@ -428,7 +437,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>Source URL</FormLabel>
                           <FormControl>
-                            <Input {...field} data-testid="input-source-url" />
+                            <Input {...field} value={field.value || ''} data-testid="input-source-url" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -442,7 +451,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>Amazon URL</FormLabel>
                           <FormControl>
-                            <Input {...field} data-testid="input-amazon-url" />
+                            <Input {...field} value={field.value || ''} data-testid="input-amazon-url" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -456,7 +465,7 @@ export default function SourcingInbox() {
                         <FormItem>
                           <FormLabel>Notes</FormLabel>
                           <FormControl>
-                            <Textarea {...field} data-testid="textarea-notes" />
+                            <Textarea {...field} value={field.value || ''} data-testid="textarea-notes" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -544,7 +553,7 @@ export default function SourcingInbox() {
                           </Button>
                           <Button
                             size="sm"
-                            variant="success"
+                            variant="default"
                             onClick={() => updateStatusMutation.mutate({ id: item.id, status: 'winner' })}
                             data-testid={`button-approve-${item.id}`}
                           >

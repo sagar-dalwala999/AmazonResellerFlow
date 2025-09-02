@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema } from "@shared/schema";
+import { googleSheetsService } from "./googleSheetsService";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -405,21 +406,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const userRole = req.user.claims.role || 'va';
       if (userRole !== 'admin') {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      // Mock Google Sheets import
-      setTimeout(() => {
-        res.json({ 
-          success: true, 
-          message: "Google Sheets import completed",
-          importedRows: Math.floor(Math.random() * 100) + 20
+      console.log("Starting Google Sheets import...");
+      
+      // Fetch data from Google Sheets
+      const sheetsData = await googleSheetsService.fetchSheetData();
+      
+      if (sheetsData.length === 0) {
+        return res.json({
+          success: true,
+          message: "No new data found in Google Sheets",
+          importedRows: 0,
+          errors: []
         });
-      }, 2500);
+      }
+
+      console.log(`Found ${sheetsData.length} rows in Google Sheets`);
+
+      let importedCount = 0;
+      const errors: string[] = [];
+
+      // Process each row
+      for (let i = 0; i < sheetsData.length; i++) {
+        const row = sheetsData[i];
+        const rowNumber = i + 2; // +2 because we skipped header and are 1-indexed
+
+        try {
+          // Validate the row
+          const validationErrors = googleSheetsService.validateRow(row);
+          if (validationErrors.length > 0) {
+            errors.push(`Zeile ${rowNumber}: ${validationErrors.join(', ')}`);
+            continue;
+          }
+
+          // Check if ASIN already exists to avoid duplicates
+          const existingSourcing = await storage.getSourcingByAsin(row.asin);
+          if (existingSourcing) {
+            console.log(`Skipping duplicate ASIN ${row.asin} in row ${rowNumber}`);
+            continue;
+          }
+
+          // Transform and create sourcing item
+          const sourcingData = googleSheetsService.transformRowForDatabase(row, userId);
+          await storage.createSourcing(sourcingData);
+          
+          importedCount++;
+          console.log(`Imported row ${rowNumber}: ${row.productName} (${row.asin})`);
+
+        } catch (error) {
+          console.error(`Error processing row ${rowNumber}:`, error);
+          errors.push(`Zeile ${rowNumber}: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+        }
+      }
+
+      // Log activity
+      await storage.logActivity({
+        userId,
+        action: 'google_sheets_import',
+        entityType: 'sourcing',
+        entityId: 'bulk_import',
+        description: `Google Sheets Import: ${importedCount} Deals importiert`,
+      });
+
+      res.json({
+        success: true,
+        message: `Import abgeschlossen: ${importedCount} von ${sheetsData.length} Zeilen importiert`,
+        importedRows: importedCount,
+        totalRows: sheetsData.length,
+        errors: errors.slice(0, 10) // Limit errors to first 10
+      });
+
     } catch (error) {
-      res.status(500).json({ message: "Google Sheets import failed" });
+      console.error("Google Sheets import error:", error);
+      res.status(500).json({ 
+        message: `Google Sheets Import fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        errors: [error instanceof Error ? error.message : 'Unbekannter Fehler']
+      });
     }
   });
 
