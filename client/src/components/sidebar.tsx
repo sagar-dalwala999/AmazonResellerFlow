@@ -7,10 +7,10 @@ export default function Sidebar() {
 
   const navigationItems = [
     { href: '/', icon: 'fas fa-tachometer-alt', label: 'Dashboard', roles: ['admin', 'va'] },
-    { href: '/deals/submit', icon: 'fas fa-plus-circle', label: 'Deal Erfassung', roles: ['admin', 'va'] },
-    { href: '/deals/evaluate', icon: 'fas fa-check-circle', label: 'Deal Bewertung', roles: ['admin'] },
-    { href: '/purchasing', icon: 'fas fa-shopping-cart', label: 'Einkaufsplanung', roles: ['admin'] },
-    { href: '/sku-management', icon: 'fas fa-barcode', label: 'SKU Management', roles: ['admin'] },
+    { href: '/sourcing', icon: 'fas fa-inbox', label: 'Sourcing Inbox', roles: ['admin', 'va'] },
+    { href: '/purchasing', icon: 'fas fa-shopping-cart', label: 'Purchasing Planner', roles: ['admin'] },
+    { href: '/listings', icon: 'fas fa-barcode', label: 'Listing Builder', roles: ['admin'] },
+    { href: '/performance', icon: 'fas fa-chart-line', label: 'VA Performance', roles: ['admin', 'va'] },
   ];
 
   const filteredItems = navigationItems.filter(item => 

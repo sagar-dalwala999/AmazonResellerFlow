@@ -1,22 +1,21 @@
 import {
   users,
-  products,
-  deals,
+  sourcing,
   purchasingPlans,
-  skus,
+  listings,
   activityLog,
   type User,
   type UpsertUser,
-  type Product,
-  type Deal,
-  type DealWithRelations,
+  type Sourcing,
+  type SourcingWithRelations,
   type PurchasingPlan,
-  type Sku,
+  type PurchasingPlanWithRelations,
+  type Listing,
+  type ListingWithRelations,
   type ActivityLog,
-  type InsertProduct,
-  type InsertDeal,
+  type InsertSourcing,
   type InsertPurchasingPlan,
-  type InsertSku,
+  type InsertListing,
   type InsertActivityLog,
   type UserWithStats,
 } from "@shared/schema";
@@ -29,32 +28,29 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getUserStats(userId: string): Promise<UserWithStats | undefined>;
 
-  // Product operations
-  getProduct(id: string): Promise<Product | undefined>;
-  getProductByAsin(asin: string): Promise<Product | undefined>;
-  createProduct(product: InsertProduct): Promise<Product>;
-
-  // Deal operations
-  createDeal(deal: InsertDeal): Promise<Deal>;
-  getDeals(options?: { status?: string; submittedBy?: string; limit?: number }): Promise<DealWithRelations[]>;
-  getDeal(id: string): Promise<DealWithRelations | undefined>;
-  updateDealStatus(id: string, status: string, reviewedBy?: string, reviewNotes?: string): Promise<void>;
-  getDealStats(): Promise<{
+  // Sourcing operations (Google Sheets data)
+  createSourcing(sourcing: InsertSourcing): Promise<Sourcing>;
+  getSourcing(options?: { status?: string; submittedBy?: string; limit?: number }): Promise<SourcingWithRelations[]>;
+  getSourcingItem(id: string): Promise<SourcingWithRelations | undefined>;
+  updateSourcingStatus(id: string, status: string, reviewedBy?: string, reviewNotes?: string): Promise<void>;
+  getSourcingStats(): Promise<{
     total: number;
-    submitted: number;
-    reviewing: number;
-    approved: number;
+    new: number;
+    under_review: number;
     winner: number;
+    no_go: number;
   }>;
 
   // Purchasing operations
   createPurchasingPlan(plan: InsertPurchasingPlan): Promise<PurchasingPlan>;
-  getPurchasingPlans(options?: { status?: string; limit?: number }): Promise<PurchasingPlan[]>;
+  getPurchasingPlans(options?: { status?: string; limit?: number }): Promise<PurchasingPlanWithRelations[]>;
+  updatePurchasingPlan(id: string, updates: Partial<PurchasingPlan>): Promise<void>;
 
-  // SKU operations
-  createSku(sku: InsertSku): Promise<Sku>;
-  getSkus(options?: { limit?: number }): Promise<Sku[]>;
-  updateSkuSyncStatus(id: string, amazonStatus?: boolean, prepMyBusinessStatus?: boolean): Promise<void>;
+  // Listing operations (SKU management)
+  createListing(listing: InsertListing): Promise<Listing>;
+  getListings(options?: { status?: string; limit?: number }): Promise<ListingWithRelations[]>;
+  updateListingStatus(id: string, amazonStatus?: string, prepMyBusinessStatus?: string): Promise<void>;
+  generateSKU(brand: string, buyPrice: number, asin: string): string;
 
   // Activity log operations
   logActivity(activity: InsertActivityLog): Promise<void>;
@@ -62,10 +58,29 @@ export interface IStorage {
 
   // Dashboard data
   getKpiData(): Promise<{
-    activeDeals: number;
+    activeSourcing: number;
     winnerProducts: number;
     monthlyProfit: number;
     availableBudget: number;
+  }>;
+
+  // VA Performance data
+  getVAPerformance(userId: string, weeks?: number): Promise<{
+    weeklyStats: Array<{
+      week: string;
+      avgProfit: number;
+      deals: number;
+      winners: number;
+      successRate: number;
+      profit: number;
+    }>;
+    totalStats: {
+      avgProfit: number;
+      totalDeals: number;
+      totalWinners: number;
+      successRate: number;
+      totalProfit: number;
+    };
   }>;
 }
 
@@ -95,93 +110,92 @@ export class DatabaseStorage implements IStorage {
     const user = await this.getUser(userId);
     if (!user) return undefined;
 
-    const dealStats = await db
+    const sourcingStats = await db
       .select({
         total: count(),
-        approved: count(sql`CASE WHEN ${deals.status} = 'approved' THEN 1 END`),
-        winner: count(sql`CASE WHEN ${deals.status} = 'winner' THEN 1 END`),
+        winners: count(sql`CASE WHEN ${sourcing.status} = 'winner' THEN 1 END`),
       })
-      .from(deals)
-      .where(eq(deals.submittedBy, userId));
+      .from(sourcing)
+      .where(eq(sourcing.submittedBy, userId));
+
+    const avgProfitResult = await db
+      .select({
+        avgProfit: sql<number>`AVG(CAST(${sourcing.profit} AS NUMERIC))`,
+      })
+      .from(sourcing)
+      .where(and(
+        eq(sourcing.submittedBy, userId),
+        eq(sourcing.status, 'winner')
+      ));
+
+    const totalSourcing = sourcingStats[0]?.total || 0;
+    const winnerSourcing = sourcingStats[0]?.winners || 0;
+    const successRate = totalSourcing > 0 ? (winnerSourcing / totalSourcing) * 100 : 0;
+    const avgProfit = avgProfitResult[0]?.avgProfit || 0;
 
     return {
       ...user,
-      totalDeals: dealStats[0]?.total || 0,
-      approvedDeals: dealStats[0]?.approved || 0,
-      winnerDeals: dealStats[0]?.winner || 0,
+      totalSourcing,
+      winnerSourcing,
+      successRate,
+      avgProfit: Number(avgProfit),
     };
   }
 
-  // Product operations
-  async getProduct(id: string): Promise<Product | undefined> {
-    const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product;
+  // Sourcing operations
+  async createSourcing(sourcingData: InsertSourcing): Promise<Sourcing> {
+    const [newSourcing] = await db.insert(sourcing).values(sourcingData).returning();
+    return newSourcing;
   }
 
-  async getProductByAsin(asin: string): Promise<Product | undefined> {
-    const [product] = await db.select().from(products).where(eq(products.asin, asin));
-    return product;
-  }
-
-  async createProduct(product: InsertProduct): Promise<Product> {
-    const [newProduct] = await db.insert(products).values(product).returning();
-    return newProduct;
-  }
-
-  // Deal operations
-  async createDeal(deal: InsertDeal): Promise<Deal> {
-    const [newDeal] = await db.insert(deals).values(deal).returning();
-    return newDeal;
-  }
-
-  async getDeals(options: { status?: string; submittedBy?: string; limit?: number } = {}): Promise<DealWithRelations[]> {
+  async getSourcing(options: { status?: string; submittedBy?: string; limit?: number } = {}): Promise<SourcingWithRelations[]> {
     const { status, submittedBy, limit = 50 } = options;
 
     let query = db
       .select()
-      .from(deals)
-      .leftJoin(products, eq(deals.productId, products.id))
-      .leftJoin(users, eq(deals.submittedBy, users.id))
-      .orderBy(desc(deals.createdAt))
+      .from(sourcing)
+      .leftJoin(users, eq(sourcing.submittedBy, users.id))
+      .orderBy(desc(sourcing.createdAt))
       .limit(limit);
 
+    const conditions = [];
     if (status) {
-      query = query.where(eq(deals.status, status as any));
+      conditions.push(eq(sourcing.status, status as any));
     }
-
     if (submittedBy) {
-      query = query.where(eq(deals.submittedBy, submittedBy));
+      conditions.push(eq(sourcing.submittedBy, submittedBy));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
     }
 
     const results = await query;
 
     return results.map(row => ({
-      ...row.deals,
-      product: row.products || undefined,
+      ...row.sourcing,
       submitter: row.users || undefined,
     }));
   }
 
-  async getDeal(id: string): Promise<DealWithRelations | undefined> {
+  async getSourcingItem(id: string): Promise<SourcingWithRelations | undefined> {
     const [result] = await db
       .select()
-      .from(deals)
-      .leftJoin(products, eq(deals.productId, products.id))
-      .leftJoin(users, eq(deals.submittedBy, users.id))
-      .where(eq(deals.id, id));
+      .from(sourcing)
+      .leftJoin(users, eq(sourcing.submittedBy, users.id))
+      .where(eq(sourcing.id, id));
 
     if (!result) return undefined;
 
     return {
-      ...result.deals,
-      product: result.products || undefined,
+      ...result.sourcing,
       submitter: result.users || undefined,
     };
   }
 
-  async updateDealStatus(id: string, status: string, reviewedBy?: string, reviewNotes?: string): Promise<void> {
+  async updateSourcingStatus(id: string, status: string, reviewedBy?: string, reviewNotes?: string): Promise<void> {
     await db
-      .update(deals)
+      .update(sourcing)
       .set({
         status: status as any,
         reviewedBy,
@@ -189,27 +203,27 @@ export class DatabaseStorage implements IStorage {
         reviewedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(deals.id, id));
+      .where(eq(sourcing.id, id));
   }
 
-  async getDealStats(): Promise<{
+  async getSourcingStats(): Promise<{
     total: number;
-    submitted: number;
-    reviewing: number;
-    approved: number;
+    new: number;
+    under_review: number;
     winner: number;
+    no_go: number;
   }> {
     const stats = await db
       .select({
         total: count(),
-        submitted: count(sql`CASE WHEN ${deals.status} = 'submitted' THEN 1 END`),
-        reviewing: count(sql`CASE WHEN ${deals.status} = 'reviewing' THEN 1 END`),
-        approved: count(sql`CASE WHEN ${deals.status} = 'approved' THEN 1 END`),
-        winner: count(sql`CASE WHEN ${deals.status} = 'winner' THEN 1 END`),
+        new: count(sql`CASE WHEN ${sourcing.status} = 'new' THEN 1 END`),
+        under_review: count(sql`CASE WHEN ${sourcing.status} = 'under_review' THEN 1 END`),
+        winner: count(sql`CASE WHEN ${sourcing.status} = 'winner' THEN 1 END`),
+        no_go: count(sql`CASE WHEN ${sourcing.status} = 'no_go' THEN 1 END`),
       })
-      .from(deals);
+      .from(sourcing);
 
-    return stats[0] || { total: 0, submitted: 0, reviewing: 0, approved: 0, winner: 0 };
+    return stats[0] || { total: 0, new: 0, under_review: 0, winner: 0, no_go: 0 };
   }
 
   // Purchasing operations
@@ -218,12 +232,13 @@ export class DatabaseStorage implements IStorage {
     return newPlan;
   }
 
-  async getPurchasingPlans(options: { status?: string; limit?: number } = {}): Promise<PurchasingPlan[]> {
+  async getPurchasingPlans(options: { status?: string; limit?: number } = {}): Promise<PurchasingPlanWithRelations[]> {
     const { status, limit = 50 } = options;
 
     let query = db
       .select()
       .from(purchasingPlans)
+      .leftJoin(sourcing, eq(purchasingPlans.sourcingId, sourcing.id))
       .orderBy(desc(purchasingPlans.createdAt))
       .limit(limit);
 
@@ -231,25 +246,49 @@ export class DatabaseStorage implements IStorage {
       query = query.where(eq(purchasingPlans.status, status as any));
     }
 
-    return await query;
+    const results = await query;
+
+    return results.map(row => ({
+      ...row.purchasing_plans,
+      sourcing: row.sourcing || undefined,
+    }));
   }
 
-  // SKU operations
-  async createSku(sku: InsertSku): Promise<Sku> {
-    const [newSku] = await db.insert(skus).values(sku).returning();
-    return newSku;
+  async updatePurchasingPlan(id: string, updates: Partial<PurchasingPlan>): Promise<void> {
+    await db
+      .update(purchasingPlans)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchasingPlans.id, id));
   }
 
-  async getSkus(options: { limit?: number } = {}): Promise<Sku[]> {
+  // Listing operations
+  async createListing(listingData: InsertListing): Promise<Listing> {
+    const [newListing] = await db.insert(listings).values(listingData).returning();
+    return newListing;
+  }
+
+  async getListings(options: { status?: string; limit?: number } = {}): Promise<ListingWithRelations[]> {
     const { limit = 50 } = options;
-    return await db
+
+    const results = await db
       .select()
-      .from(skus)
-      .orderBy(desc(skus.createdAt))
+      .from(listings)
+      .leftJoin(sourcing, eq(listings.sourcingId, sourcing.id))
+      .leftJoin(purchasingPlans, eq(listings.purchasingId, purchasingPlans.id))
+      .orderBy(desc(listings.createdAt))
       .limit(limit);
+
+    return results.map(row => ({
+      ...row.listings,
+      sourcing: row.sourcing || undefined,
+      purchasing: row.purchasing_plans || undefined,
+    }));
   }
 
-  async updateSkuSyncStatus(id: string, amazonStatus?: boolean, prepMyBusinessStatus?: boolean): Promise<void> {
+  async updateListingStatus(id: string, amazonStatus?: string, prepMyBusinessStatus?: string): Promise<void> {
     const updates: any = { updatedAt: new Date() };
     
     if (amazonStatus !== undefined) {
@@ -264,7 +303,25 @@ export class DatabaseStorage implements IStorage {
       updates.lastSyncAt = new Date();
     }
 
-    await db.update(skus).set(updates).where(eq(skus.id, id));
+    await db.update(listings).set(updates).where(eq(listings.id, id));
+  }
+
+  generateSKU(brand: string, buyPrice: number, asin: string): string {
+    const date = new Date();
+    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6); // DDMMYY format
+    const formattedPrice = buyPrice.toFixed(2);
+    
+    let truncatedBrand = brand.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    
+    // Calculate max brand length to stay under 40 chars total
+    const baseLength = formattedPrice.length + 1 + dateStr.length + 1 + asin.length + 2; // +2 for underscores
+    const maxBrandLength = 40 - baseLength;
+    
+    if (truncatedBrand.length > maxBrandLength) {
+      truncatedBrand = truncatedBrand.substring(0, maxBrandLength);
+    }
+    
+    return `${truncatedBrand}_${formattedPrice}_${dateStr}_${asin}`;
   }
 
   // Activity log operations
@@ -282,31 +339,119 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard data
   async getKpiData(): Promise<{
-    activeDeals: number;
+    activeSourcing: number;
     winnerProducts: number;
     monthlyProfit: number;
     availableBudget: number;
   }> {
-    const dealStats = await this.getDealStats();
+    const sourcingStats = await this.getSourcingStats();
     
-    // Calculate monthly profit (simplified calculation)
-    const winnerDeals = await db
+    // Calculate monthly profit from winner sourcing items
+    const winnerProfit = await db
       .select({
-        profit: sql<number>`SUM(CAST(${deals.sellPrice} - ${deals.buyPrice} AS NUMERIC))`,
+        profit: sql<number>`SUM(CAST(${sourcing.profit} AS NUMERIC))`,
       })
-      .from(deals)
+      .from(sourcing)
       .where(and(
-        eq(deals.status, 'winner'),
-        sql`${deals.createdAt} >= date_trunc('month', current_date)`
+        eq(sourcing.status, 'winner'),
+        sql`${sourcing.createdAt} >= date_trunc('month', current_date)`
       ));
 
-    const monthlyProfit = winnerDeals[0]?.profit || 0;
+    const monthlyProfit = winnerProfit[0]?.profit || 0;
 
     return {
-      activeDeals: dealStats.submitted + dealStats.reviewing,
-      winnerProducts: dealStats.winner,
+      activeSourcing: sourcingStats.new + sourcingStats.under_review,
+      winnerProducts: sourcingStats.winner,
       monthlyProfit: Number(monthlyProfit),
       availableBudget: 156750, // This could be calculated based on actual budget tracking
+    };
+  }
+
+  // VA Performance data
+  async getVAPerformance(userId: string, weeks: number = 4): Promise<{
+    weeklyStats: Array<{
+      week: string;
+      avgProfit: number;
+      deals: number;
+      winners: number;
+      successRate: number;
+      profit: number;
+    }>;
+    totalStats: {
+      avgProfit: number;
+      totalDeals: number;
+      totalWinners: number;
+      successRate: number;
+      totalProfit: number;
+    };
+  }> {
+    // Get weekly stats for the last N weeks
+    const weeklyStats = [];
+    for (let i = 0; i < weeks; i++) {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - (i * 7));
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      const weekData = await db
+        .select({
+          deals: count(),
+          winners: count(sql`CASE WHEN ${sourcing.status} = 'winner' THEN 1 END`),
+          profit: sql<number>`SUM(CAST(${sourcing.profit} AS NUMERIC))`,
+          avgProfit: sql<number>`AVG(CAST(${sourcing.profit} AS NUMERIC))`,
+        })
+        .from(sourcing)
+        .where(and(
+          eq(sourcing.submittedBy, userId),
+          sql`${sourcing.createdAt} >= ${weekStart.toISOString()}`,
+          sql`${sourcing.createdAt} <= ${weekEnd.toISOString()}`
+        ));
+
+      const deals = weekData[0]?.deals || 0;
+      const winners = weekData[0]?.winners || 0;
+      const profit = weekData[0]?.profit || 0;
+      const avgProfit = weekData[0]?.avgProfit || 0;
+      const successRate = deals > 0 ? (winners / deals) * 100 : 0;
+
+      weeklyStats.push({
+        week: `KW ${Math.ceil((weekStart.getDate()) / 7)}`,
+        avgProfit: Number(avgProfit),
+        deals,
+        winners,
+        successRate,
+        profit: Number(profit),
+      });
+    }
+
+    // Get total stats
+    const totalData = await db
+      .select({
+        deals: count(),
+        winners: count(sql`CASE WHEN ${sourcing.status} = 'winner' THEN 1 END`),
+        profit: sql<number>`SUM(CAST(${sourcing.profit} AS NUMERIC))`,
+        avgProfit: sql<number>`AVG(CAST(${sourcing.profit} AS NUMERIC))`,
+      })
+      .from(sourcing)
+      .where(eq(sourcing.submittedBy, userId));
+
+    const totalDeals = totalData[0]?.deals || 0;
+    const totalWinners = totalData[0]?.winners || 0;
+    const totalProfit = totalData[0]?.profit || 0;
+    const avgProfit = totalData[0]?.avgProfit || 0;
+    const successRate = totalDeals > 0 ? (totalWinners / totalDeals) * 100 : 0;
+
+    return {
+      weeklyStats: weeklyStats.reverse(), // Most recent first
+      totalStats: {
+        avgProfit: Number(avgProfit),
+        totalDeals,
+        totalWinners,
+        successRate,
+        totalProfit: Number(totalProfit),
+      },
     };
   }
 }

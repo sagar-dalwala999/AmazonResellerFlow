@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertDealSchema, insertProductSchema } from "@shared/schema";
+import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -21,51 +21,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Deal routes
-  app.post('/api/deals', isAuthenticated, async (req: any, res) => {
+  // Sourcing routes (Google Sheets Integration)
+  app.post('/api/sourcing', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const dealData = insertDealSchema.parse(req.body);
+      const sourcingData = insertSourcingSchema.parse(req.body);
 
-      // Create or get product
-      let product = await storage.getProductByAsin(dealData.productId || '');
-      if (!product && req.body.productName && req.body.asin) {
-        product = await storage.createProduct({
-          asin: req.body.asin,
-          productName: req.body.productName,
-          category: req.body.category,
-        });
-      }
+      // Calculate profit and margin
+      const costPrice = Number(sourcingData.costPrice);
+      const salePrice = Number(sourcingData.salePrice);
+      const profit = salePrice - costPrice;
+      const profitMargin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
+      const roi = costPrice > 0 ? (profit / costPrice) * 100 : 0;
 
-      // Calculate profit margin
-      const buyPrice = Number(dealData.buyPrice);
-      const sellPrice = Number(dealData.sellPrice);
-      const profitMargin = ((sellPrice - buyPrice) / sellPrice) * 100;
-
-      const deal = await storage.createDeal({
-        ...dealData,
-        productId: product?.id,
+      const sourcing = await storage.createSourcing({
+        ...sourcingData,
         submittedBy: userId,
+        profit: profit.toString(),
         profitMargin: profitMargin.toString(),
+        roi: roi.toString(),
       });
 
       // Log activity
       await storage.logActivity({
         userId,
-        action: 'deal_submitted',
-        entityType: 'deal',
-        entityId: deal.id,
-        description: `Deal für "${req.body.productName}" eingereicht`,
+        action: 'sourcing_submitted',
+        entityType: 'sourcing',
+        entityId: sourcing.id,
+        description: `Sourcing für "${sourcingData.productName}" eingereicht`,
       });
 
-      res.json(deal);
+      res.json(sourcing);
     } catch (error) {
-      console.error("Error creating deal:", error);
-      res.status(400).json({ message: "Failed to create deal" });
+      console.error("Error creating sourcing:", error);
+      res.status(400).json({ message: "Failed to create sourcing item" });
     }
   });
 
-  app.get('/api/deals', isAuthenticated, async (req: any, res) => {
+  app.get('/api/sourcing', isAuthenticated, async (req: any, res) => {
     try {
       const { status, limit } = req.query;
       const userId = req.user.claims.sub;
@@ -75,47 +68,244 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status) options.status = status;
       if (limit) options.limit = parseInt(limit);
       
-      // VAs can only see their own deals
+      // VAs can only see their own sourcing
       if (userRole === 'va') {
         options.submittedBy = userId;
       }
 
-      const deals = await storage.getDeals(options);
-      res.json(deals);
+      const sourcing = await storage.getSourcing(options);
+      res.json(sourcing);
     } catch (error) {
-      console.error("Error fetching deals:", error);
-      res.status(500).json({ message: "Failed to fetch deals" });
+      console.error("Error fetching sourcing:", error);
+      res.status(500).json({ message: "Failed to fetch sourcing items" });
     }
   });
 
-  app.patch('/api/deals/:id/status', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/sourcing/:id/status', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const userRole = req.user.claims.role || 'va';
       
-      // Only admins can update deal status
+      // Only admins can update sourcing status
       if (userRole !== 'admin') {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
       const { status, reviewNotes } = req.body;
-      const dealId = req.params.id;
+      const sourcingId = req.params.id;
 
-      await storage.updateDealStatus(dealId, status, userId, reviewNotes);
+      await storage.updateSourcingStatus(sourcingId, status, userId, reviewNotes);
 
       // Log activity
       await storage.logActivity({
         userId,
-        action: 'deal_status_updated',
-        entityType: 'deal',
-        entityId: dealId,
-        description: `Deal Status zu "${status}" geändert`,
+        action: 'sourcing_status_updated',
+        entityType: 'sourcing',
+        entityId: sourcingId,
+        description: `Sourcing Status zu "${status}" geändert`,
       });
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error updating deal status:", error);
-      res.status(500).json({ message: "Failed to update deal status" });
+      console.error("Error updating sourcing status:", error);
+      res.status(500).json({ message: "Failed to update sourcing status" });
+    }
+  });
+
+  // Purchasing routes
+  app.post('/api/purchasing', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = req.user.claims.role || 'va';
+      
+      // Only admins can create purchasing plans
+      if (userRole !== 'admin') {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const planData = insertPurchasingPlanSchema.parse(req.body);
+      
+      // Calculate expected revenue and profit
+      const quantity = planData.plannedQuantity;
+      const costPerUnit = Number(planData.costPerUnit);
+      const plannedBudget = Number(planData.plannedBudget);
+      
+      // Get sourcing item to calculate sale price
+      const sourcingItem = await storage.getSourcingItem(planData.sourcingId);
+      if (!sourcingItem) {
+        return res.status(404).json({ message: "Sourcing item not found" });
+      }
+
+      const salePrice = Number(sourcingItem.salePrice);
+      const expectedRevenue = quantity * salePrice;
+      const expectedProfit = expectedRevenue - plannedBudget;
+      
+      // Check margin warning (if profit margin < 15%)
+      const marginWarning = (expectedProfit / expectedRevenue) < 0.15;
+
+      const plan = await storage.createPurchasingPlan({
+        ...planData,
+        expectedRevenue: expectedRevenue.toString(),
+        expectedProfit: expectedProfit.toString(),
+        marginWarning,
+      });
+
+      // Log activity
+      await storage.logActivity({
+        userId,
+        action: 'purchasing_plan_created',
+        entityType: 'purchasing',
+        entityId: plan.id,
+        description: `Einkaufsplan für ${quantity} Einheiten erstellt`,
+      });
+
+      res.json(plan);
+    } catch (error) {
+      console.error("Error creating purchasing plan:", error);
+      res.status(400).json({ message: "Failed to create purchasing plan" });
+    }
+  });
+
+  app.get('/api/purchasing', isAuthenticated, async (req: any, res) => {
+    try {
+      const { status, limit } = req.query;
+      const options: any = {};
+      if (status) options.status = status;
+      if (limit) options.limit = parseInt(limit);
+
+      const plans = await storage.getPurchasingPlans(options);
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching purchasing plans:", error);
+      res.status(500).json({ message: "Failed to fetch purchasing plans" });
+    }
+  });
+
+  app.patch('/api/purchasing/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = req.user.claims.role || 'va';
+      
+      if (userRole !== 'admin') {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const planId = req.params.id;
+      const updates = req.body;
+
+      await storage.updatePurchasingPlan(planId, updates);
+
+      await storage.logActivity({
+        userId,
+        action: 'purchasing_plan_updated',
+        entityType: 'purchasing',
+        entityId: planId,
+        description: `Einkaufsplan aktualisiert`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating purchasing plan:", error);
+      res.status(500).json({ message: "Failed to update purchasing plan" });
+    }
+  });
+
+  // Listing routes (SKU Management)
+  app.post('/api/listings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = req.user.claims.role || 'va';
+      
+      // Only admins can create listings
+      if (userRole !== 'admin') {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { sourcingId, purchasingId } = req.body;
+      
+      // Get sourcing item for SKU generation
+      const sourcingItem = await storage.getSourcingItem(sourcingId);
+      if (!sourcingItem) {
+        return res.status(404).json({ message: "Sourcing item not found" });
+      }
+
+      // Generate SKU
+      const skuCode = storage.generateSKU(
+        sourcingItem.brand || 'UNKNOWN',
+        Number(sourcingItem.costPrice),
+        sourcingItem.asin
+      );
+
+      const date = new Date();
+      const generatedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
+
+      const listing = await storage.createListing({
+        sourcingId,
+        purchasingId,
+        skuCode,
+        brand: sourcingItem.brand || 'UNKNOWN',
+        buyPrice: sourcingItem.costPrice,
+        asin: sourcingItem.asin,
+        generatedDate,
+      });
+
+      // Log activity
+      await storage.logActivity({
+        userId,
+        action: 'listing_created',
+        entityType: 'listing',
+        entityId: listing.id,
+        description: `Listing ${skuCode} erstellt`,
+      });
+
+      res.json(listing);
+    } catch (error) {
+      console.error("Error creating listing:", error);
+      res.status(500).json({ message: "Failed to create listing" });
+    }
+  });
+
+  app.get('/api/listings', isAuthenticated, async (req: any, res) => {
+    try {
+      const { status, limit } = req.query;
+      const options: any = {};
+      if (status) options.status = status;
+      if (limit) options.limit = parseInt(limit);
+
+      const listings = await storage.getListings(options);
+      res.json(listings);
+    } catch (error) {
+      console.error("Error fetching listings:", error);
+      res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+
+  app.patch('/api/listings/:id/sync', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userRole = req.user.claims.role || 'va';
+      
+      if (userRole !== 'admin') {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const listingId = req.params.id;
+      const { amazonStatus, prepMyBusinessStatus } = req.body;
+
+      await storage.updateListingStatus(listingId, amazonStatus, prepMyBusinessStatus);
+
+      await storage.logActivity({
+        userId,
+        action: 'listing_sync_updated',
+        entityType: 'listing',
+        entityId: listingId,
+        description: `Listing Sync-Status aktualisiert`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating listing sync status:", error);
+      res.status(500).json({ message: "Failed to update listing sync status" });
     }
   });
 
@@ -132,7 +322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/dashboard/pipeline', isAuthenticated, async (req, res) => {
     try {
-      const pipeline = await storage.getDealStats();
+      const pipeline = await storage.getSourcingStats();
       res.json(pipeline);
     } catch (error) {
       console.error("Error fetching pipeline data:", error);
@@ -151,41 +341,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SKU routes
-  app.post('/api/skus', isAuthenticated, async (req: any, res) => {
+  // VA Performance routes
+  app.get('/api/va/performance/:userId', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.params.userId;
       const userRole = req.user.claims.role || 'va';
+      const currentUserId = req.user.claims.sub;
       
-      // Only admins can create SKUs
-      if (userRole !== 'admin') {
+      // VAs can only see their own performance, admins can see any
+      if (userRole === 'va' && userId !== currentUserId) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      const { dealId } = req.body;
-      
-      // Generate SKU code
-      const timestamp = Date.now().toString().slice(-6);
-      const skuCode = `AMZ-${timestamp}`;
-
-      const sku = await storage.createSku({
-        dealId,
-        skuCode,
-      });
-
-      // Log activity
-      await storage.logActivity({
-        userId,
-        action: 'sku_generated',
-        entityType: 'sku',
-        entityId: sku.id,
-        description: `SKU ${skuCode} generiert`,
-      });
-
-      res.json(sku);
+      const { weeks } = req.query;
+      const performance = await storage.getVAPerformance(userId, weeks ? parseInt(weeks as string) : 4);
+      res.json(performance);
     } catch (error) {
-      console.error("Error creating SKU:", error);
-      res.status(500).json({ message: "Failed to create SKU" });
+      console.error("Error fetching VA performance:", error);
+      res.status(500).json({ message: "Failed to fetch VA performance" });
     }
   });
 
@@ -197,14 +370,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      // Mock Amazon API sync
+      // Mock Amazon SP-API sync
       setTimeout(() => {
         res.json({ 
           success: true, 
-          message: "Amazon sync completed",
-          syncedProducts: Math.floor(Math.random() * 50) + 10
+          message: "Amazon SP-API sync completed",
+          syncedListings: Math.floor(Math.random() * 50) + 10
         });
-      }, 1000);
+      }, 2000);
     } catch (error) {
       res.status(500).json({ message: "Amazon sync failed" });
     }
@@ -222,7 +395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ 
           success: true, 
           message: "PrepMyBusiness sync completed",
-          syncedOrders: Math.floor(Math.random() * 20) + 5
+          syncedJobs: Math.floor(Math.random() * 20) + 5
         });
       }, 1500);
     } catch (error) {
@@ -244,9 +417,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Google Sheets import completed",
           importedRows: Math.floor(Math.random() * 100) + 20
         });
-      }, 2000);
+      }, 2500);
     } catch (error) {
       res.status(500).json({ message: "Google Sheets import failed" });
+    }
+  });
+
+  app.post('/api/integrations/keepa/buybox', isAuthenticated, async (req: any, res) => {
+    try {
+      const { asin } = req.body;
+      
+      // Mock Keepa API call for BuyBox data
+      setTimeout(() => {
+        res.json({
+          success: true,
+          asin,
+          buyBox: {
+            current: (Math.random() * 100 + 50).toFixed(2),
+            avg90Days: (Math.random() * 100 + 50).toFixed(2),
+            currency: 'EUR'
+          },
+          lastUpdated: new Date().toISOString()
+        });
+      }, 1000);
+    } catch (error) {
+      res.status(500).json({ message: "Keepa API call failed" });
     }
   });
 
