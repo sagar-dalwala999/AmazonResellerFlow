@@ -15,7 +15,7 @@ import { insertSourcingSchema } from "@shared/schema";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Plus, RefreshCw, CheckCircle, Clock, XCircle, Eye } from "lucide-react";
+import { Download, Plus, RefreshCw, CheckCircle, Clock, XCircle, Eye, Bug, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const sourcingFormSchema = insertSourcingSchema.extend({
@@ -38,6 +38,8 @@ export default function SourcingInbox() {
   const queryClient = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
 
   const userRole = (user as any)?.role || 'va';
   const isAdmin = userRole === 'admin';
@@ -93,23 +95,32 @@ export default function SourcingInbox() {
   const testConnectionMutation = useMutation({
     mutationFn: () => apiRequest('/api/integrations/google-sheets/test'),
     onSuccess: (result: any) => {
+      setDebugInfo(result);
       if (result.success) {
         toast({
           title: "Verbindung erfolgreich",
-          description: `Spreadsheet "${result.spreadsheet.title}" gefunden. ${result.spreadsheet.rowCount} Zeilen verfügbar.`,
+          description: `Spreadsheet "${result.spreadsheet?.title}" gefunden. ${result.spreadsheet?.rowCount} Zeilen verfügbar.`,
         });
       } else {
+        setIsDebugOpen(true);
         toast({
           title: "Verbindungsfehler",
-          description: result.error,
+          description: "Debug-Fenster geöffnet. Siehe Details.",
           variant: "destructive",
         });
       }
     },
     onError: (error: Error) => {
+      setDebugInfo({ 
+        success: false, 
+        error: error.message,
+        fullError: error,
+        timestamp: new Date().toISOString()
+      });
+      setIsDebugOpen(true);
       toast({
         title: "Test fehlgeschlagen",
-        description: error.message,
+        description: "Debug-Fenster geöffnet. Siehe Details.",
         variant: "destructive",
       });
     },
@@ -256,6 +267,115 @@ export default function SourcingInbox() {
             )}
             Import from Sourcing Sheet
           </Button>
+          {debugInfo && (
+            <Button
+              variant="outline"
+              onClick={() => setIsDebugOpen(true)}
+              data-testid="button-debug"
+            >
+              <Bug className="h-4 w-4 mr-2" />
+              Debug Info
+            </Button>
+          )}
+          
+          {/* Debug Dialog */}
+          <Dialog open={isDebugOpen} onOpenChange={setIsDebugOpen}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  Google Sheets Debug Information
+                </DialogTitle>
+                <DialogDescription>
+                  Detaillierte Informationen über die Verbindung und Fehler
+                </DialogDescription>
+              </DialogHeader>
+              
+              {debugInfo && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2">Status</h3>
+                    <Badge variant={debugInfo.success ? "default" : "destructive"}>
+                      {debugInfo.success ? "Erfolgreich" : "Fehler"}
+                    </Badge>
+                  </div>
+                  
+                  {debugInfo.error && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <h3 className="font-semibold text-red-800 mb-2">Fehlermeldung</h3>
+                      <p className="text-red-700 font-mono text-sm">{debugInfo.error}</p>
+                    </div>
+                  )}
+                  
+                  {debugInfo.spreadsheet && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <h3 className="font-semibold text-green-800 mb-2">Spreadsheet Info</h3>
+                      <div className="space-y-2 text-sm">
+                        <p><strong>Titel:</strong> {debugInfo.spreadsheet.title || "Unbekannt"}</p>
+                        <p><strong>Verfügbare Sheets:</strong> {debugInfo.spreadsheet.sheets?.join(", ") || "Keine gefunden"}</p>
+                        <p><strong>Sourcing Tab gefunden:</strong> {debugInfo.spreadsheet.sourcingTabFound ? "Ja" : "Nein"}</p>
+                        <p><strong>Zeilen mit Daten:</strong> {debugInfo.spreadsheet.rowCount || 0}</p>
+                        <p><strong>Hat Daten:</strong> {debugInfo.spreadsheet.hasData ? "Ja" : "Nein"}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {debugInfo.spreadsheet?.headers && debugInfo.spreadsheet.headers.length > 0 && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h3 className="font-semibold text-blue-800 mb-2">Header-Zeile (Spalte A-J)</h3>
+                      <div className="font-mono text-sm text-blue-700">
+                        {debugInfo.spreadsheet.headers.slice(0, 10).map((header: string, i: number) => (
+                          <span key={i} className="inline-block mr-2 mb-1 px-2 py-1 bg-blue-100 rounded">
+                            {String.fromCharCode(65 + i)}: {header || "(leer)"}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {debugInfo.spreadsheet?.firstRow && debugInfo.spreadsheet.firstRow.length > 0 && (
+                    <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                      <h3 className="font-semibold text-purple-800 mb-2">Erste Datenzeile (Spalte A-J)</h3>
+                      <div className="font-mono text-sm text-purple-700">
+                        {debugInfo.spreadsheet.firstRow.slice(0, 10).map((cell: string, i: number) => (
+                          <span key={i} className="inline-block mr-2 mb-1 px-2 py-1 bg-purple-100 rounded">
+                            {String.fromCharCode(65 + i)}: {cell || "(leer)"}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {debugInfo.timestamp && (
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <h3 className="font-semibold text-gray-800 mb-2">Weitere Details</h3>
+                      <p className="text-sm text-gray-600">Test durchgeführt: {new Date(debugInfo.timestamp).toLocaleString('de-DE')}</p>
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h3 className="font-semibold text-yellow-800 mb-2">Vollständige Debug-Daten (JSON)</h3>
+                    <pre className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded overflow-auto max-h-40">
+                      {JSON.stringify(debugInfo, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsDebugOpen(false)}>
+                  Schließen
+                </Button>
+                <Button 
+                  onClick={() => testConnectionMutation.mutate()} 
+                  disabled={testConnectionMutation.isPending}
+                >
+                  Erneut testen
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-sourcing">

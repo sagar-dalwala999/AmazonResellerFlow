@@ -407,19 +407,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Sheets connection test endpoint
   app.get('/api/integrations/google-sheets/test', async (req, res) => {
     try {
+      console.log("🔍 Starting Google Sheets connection test...");
+      console.log("📋 Environment check:", {
+        hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+        hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+        hasCredentialsFile: require('fs').existsSync('./server/googleSheetsCredentials.json')
+      });
+      
       const result = await googleSheetsService.testConnection();
       
+      console.log("📊 Test result:", JSON.stringify(result, null, 2));
+      
       if (result.success) {
-        res.json(result);
+        res.json({
+          ...result,
+          debugInfo: {
+            timestamp: new Date().toISOString(),
+            environment: {
+              hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+              spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+            }
+          }
+        });
       } else {
-        res.status(400).json(result);
+        res.status(400).json({
+          ...result,
+          debugInfo: {
+            timestamp: new Date().toISOString(),
+            environment: {
+              hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+              spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+            }
+          }
+        });
       }
 
     } catch (error) {
-      console.error("Google Sheets test error:", error);
+      console.error("❌ Google Sheets test error:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
+        code: (error as any)?.code,
+        library: (error as any)?.library,
+        reason: (error as any)?.reason
+      });
+      
       res.status(500).json({
         success: false,
-        error: `Verbindungstest fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+        error: `Verbindungstest fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        debugInfo: {
+          timestamp: new Date().toISOString(),
+          errorDetails: {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            name: error instanceof Error ? error.name : undefined,
+            code: (error as any)?.code,
+            library: (error as any)?.library,
+            reason: (error as any)?.reason
+          },
+          environment: {
+            hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+            hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+            spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+          }
+        }
       });
     }
   });
