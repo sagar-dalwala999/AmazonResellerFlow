@@ -342,6 +342,23 @@ export function parsePercentMaybe(value: string): number | null {
   return googleSheetsService.parsePercentMaybe(value);
 }
 
+export function parseNumericValue(value: any): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  
+  const str = String(value).trim();
+  if (!str) return null;
+  
+  // Handle special cases like "> 29", "< 5", etc.
+  const numericStr = str.replace(/[^\d,-]/g, "");
+  if (!numericStr) return null;
+  
+  // Handle German decimal comma
+  const normalized = numericStr.replace(',', '.');
+  const parsed = parseFloat(normalized);
+  
+  return isNaN(parsed) ? null : parsed;
+}
+
 export async function readSourcingSheet() {
   return googleSheetsService.readSourcingSheet();
 }

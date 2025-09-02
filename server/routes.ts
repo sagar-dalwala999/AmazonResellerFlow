@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema } from "@shared/schema";
-import { googleSheetsService, parseMoneySmart, parsePercentMaybe, readSourcingSheet } from "./googleSheetsService";
+import { googleSheetsService, parseMoneySmart, parsePercentMaybe, parseNumericValue, readSourcingSheet } from "./googleSheetsService";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -479,9 +479,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/google-sheets/import', async (_req, res) => {
+  app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = 'system'; // Default user for import
+      const userId = req.user.claims.sub; // Use authenticated user
       const { headers, items } = await readSourcingSheet();
 
       console.log(`🔍 Found ${items.length} total rows in Google Sheets`);
@@ -533,6 +533,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return null;
           }
 
+          // Parse numeric values safely
+          const estimatedSalesNum = parseNumericValue(pick(raw, "Estimated Sales"));
+          const fbaSellerCountNum = parseNumericValue(pick(raw, "FBA Seller Count"));
+          const fbmSellerCountNum = parseNumericValue(pick(raw, "FBM Seller Count"));
+
           return {
             datum: date ? new Date(date) : new Date(),
             imageUrl: imageUrl || null,
@@ -547,9 +552,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             profit: profit.toString(),
             profitMargin: profitMargin?.toString() || null,
             roi: costPrice > 0 ? ((profit / costPrice) * 100).toString() : "0",
-            estimatedSales: null,
-            fbaSellerCount: null,
-            fbmSellerCount: null,
+            estimatedSales: estimatedSalesNum?.toString() || null,
+            fbaSellerCount: fbaSellerCountNum?.toString() || null,
+            fbmSellerCount: fbmSellerCountNum?.toString() || null,
             productReview: review || null,
             notes: notes || null,
             sourcingMethod: sourcingMethod || 'google-sheets',
