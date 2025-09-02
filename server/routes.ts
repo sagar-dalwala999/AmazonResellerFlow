@@ -408,11 +408,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/google-sheets/test', async (req, res) => {
     try {
       console.log("🔍 Starting Google Sheets connection test...");
+      const newSpreadsheetId = "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
       console.log("📋 Environment check:", {
-        hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+        hasSpreadsheetId: true,
         hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
         hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-        spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+        spreadsheetId: newSpreadsheetId
       });
       
       const result = await googleSheetsService.testConnection();
@@ -425,10 +426,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           debugInfo: {
             timestamp: new Date().toISOString(),
             environment: {
-              hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasSpreadsheetId: true,
               hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-              spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+              spreadsheetId: newSpreadsheetId
             }
           }
         });
@@ -438,10 +439,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           debugInfo: {
             timestamp: new Date().toISOString(),
             environment: {
-              hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasSpreadsheetId: true,
               hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-              spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+              spreadsheetId: newSpreadsheetId
             }
           }
         });
@@ -470,9 +471,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reason: (error as any)?.reason
           },
           environment: {
-            hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+            hasSpreadsheetId: true,
             hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-            spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+            spreadsheetId: newSpreadsheetId
           }
         }
       });
