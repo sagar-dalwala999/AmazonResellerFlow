@@ -6,23 +6,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 interface GoogleSheetsRow {
-  datum?: string;
-  imageUrl?: string;
-  brand?: string;
-  productName: string;
-  asin: string;
-  eanBarcode?: string;
-  sourceUrl?: string;
-  amazonUrl?: string;
-  costPrice: string;
-  salePrice: string;
-  buyBoxAverage90Days?: string;
-  estimatedSales?: string;
-  fbaSellerCount?: string;
-  fbmSellerCount?: string;
-  productReview?: string;
-  notes?: string;
-  sourcingMethod?: string;
+  datum?: string;                    // A: Export Date (UTC yyyy-mm-dd)
+  imageUrl?: string;                 // B: Image URL
+  asin: string;                      // C: ASIN
+  eanBarcode?: string;               // D: EAN Barcode
+  brand?: string;                    // E: Brand
+  productName: string;               // F: Product Name
+  sourceUrl?: string;                // G: Source URL
+  amazonUrl?: string;                // H: Amazon URL
+  estimatedSales?: string;           // I: Estimated Sales
+  costPrice: string;                 // J: Cost Price
+  buyBoxCurrent?: string;            // K: Buy Box (Current)
+  buyBoxAverage90Days?: string;      // L: Buy Box (Average Last 90 Days)
+  profit?: string;                   // M: Profit (calculated in sheet)
+  profitMargin?: string;             // N: Profit Margin (calculated in sheet)
+  roi?: string;                      // O: R.O.I. (calculated in sheet)
+  notes?: string;                    // P: All Notes
 }
 
 export class GoogleSheetsService {
@@ -30,8 +29,8 @@ export class GoogleSheetsService {
   private spreadsheetId: string;
 
   constructor() {
-    // Use the original spreadsheet with new simplified format in first tab
-    this.spreadsheetId = "1sF5SRaycdvRichCjdJrIMyPD7RJsQtQ7M7xJfkVODBg";
+    // Use environment variable for spreadsheet ID
+    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
     this.sheets = null; // Initialize later
   }
 
@@ -135,31 +134,29 @@ export class GoogleSheetsService {
   }
 
   private mapRowToObject(headers: string[], row: string[]): GoogleSheetsRow {
-    // Column mapping for 28-field structure
+    // Column mapping for new 16-field Test Sheet structure
     const columnMapping: Record<number, keyof GoogleSheetsRow> = {
-      0: 'datum',            // A: Datum
-      1: 'imageUrl',         // B: Image URL
-      2: 'brand',            // C: Brand
-      3: 'productName',      // D: Product Name
-      4: 'asin',             // E: ASIN
-      5: 'eanBarcode',       // F: EAN/Barcode
-      6: 'sourceUrl',        // G: Source URL
-      7: 'amazonUrl',        // H: Amazon URL
-      8: 'costPrice',        // I: Cost Price
-      9: 'salePrice',        // J: Sale Price
-      10: 'buyBoxAverage90Days', // K: BuyBox Average 90 Days
-      11: 'estimatedSales',  // L: Estimated Sales
-      12: 'fbaSellerCount',  // M: FBA Seller Count
-      13: 'fbmSellerCount',  // N: FBM Seller Count
-      14: 'productReview',   // O: Product Review
-      15: 'notes',           // P: Notes
-      16: 'sourcingMethod',  // Q: Sourcing Method
-      // Columns R-AB (17-27) are available for future expansion
+      0: 'datum',                    // A: Export Date (UTC yyyy-mm-dd)
+      1: 'imageUrl',                 // B: Image URL
+      2: 'asin',                     // C: ASIN
+      3: 'eanBarcode',               // D: EAN Barcode
+      4: 'brand',                    // E: Brand
+      5: 'productName',              // F: Product Name
+      6: 'sourceUrl',                // G: Source URL
+      7: 'amazonUrl',                // H: Amazon URL
+      8: 'estimatedSales',           // I: Estimated Sales
+      9: 'costPrice',                // J: Cost Price
+      10: 'buyBoxCurrent',           // K: Buy Box (Current)
+      11: 'buyBoxAverage90Days',     // L: Buy Box (Average Last 90 Days)
+      12: 'profit',                  // M: Profit
+      13: 'profitMargin',            // N: Profit Margin (xx% legacy)
+      14: 'roi',                     // O: R.O.I.
+      15: 'notes',                   // P: All Notes
     };
 
     const result: any = {};
 
-    for (let i = 0; i < row.length && i < 28; i++) {
+    for (let i = 0; i < row.length && i < 16; i++) {
       const fieldName = columnMapping[i];
       if (fieldName && row[i] && row[i].trim() !== '') {
         result[fieldName] = row[i].trim();
@@ -168,16 +165,13 @@ export class GoogleSheetsService {
 
     // Ensure required fields have values
     if (!result.productName) {
-      throw new Error("Product Name is required (Column D)");
+      throw new Error("Product Name is required (Column F)");
     }
     if (!result.asin) {
-      throw new Error("ASIN is required (Column E)");
+      throw new Error("ASIN is required (Column C)");
     }
     if (!result.costPrice) {
-      throw new Error("Cost Price is required (Column I)");
-    }
-    if (!result.salePrice) {
-      throw new Error("Sale Price is required (Column J)");
+      throw new Error("Cost Price is required (Column J)");
     }
 
     return result as GoogleSheetsRow;
@@ -196,16 +190,12 @@ export class GoogleSheetsService {
     if (!row.costPrice || row.costPrice.trim() === '') {
       errors.push("Cost Price ist erforderlich");
     }
-    if (!row.salePrice || row.salePrice.trim() === '') {
-      errors.push("Sale Price ist erforderlich");
-    }
-
     // Validate numeric fields
     if (row.costPrice && isNaN(parseFloat(row.costPrice))) {
       errors.push("Cost Price muss eine gültige Zahl sein");
     }
-    if (row.salePrice && isNaN(parseFloat(row.salePrice))) {
-      errors.push("Sale Price muss eine gültige Zahl sein");
+    if (row.buyBoxCurrent && isNaN(parseFloat(row.buyBoxCurrent))) {
+      errors.push("Buy Box Current muss eine gültige Zahl sein");
     }
     if (row.buyBoxAverage90Days && isNaN(parseFloat(row.buyBoxAverage90Days))) {
       errors.push("BuyBox Average muss eine gültige Zahl sein");
@@ -213,8 +203,14 @@ export class GoogleSheetsService {
     if (row.estimatedSales && isNaN(parseInt(row.estimatedSales))) {
       errors.push("Estimated Sales muss eine ganze Zahl sein");
     }
-    if (row.productReview && (isNaN(parseFloat(row.productReview)) || parseFloat(row.productReview) < 1 || parseFloat(row.productReview) > 5)) {
-      errors.push("Product Review muss zwischen 1 und 5 liegen");
+    if (row.profit && isNaN(parseFloat(row.profit))) {
+      errors.push("Profit muss eine gültige Zahl sein");
+    }
+    if (row.profitMargin && isNaN(parseFloat(row.profitMargin))) {
+      errors.push("Profit Margin muss eine gültige Zahl sein");
+    }
+    if (row.roi && isNaN(parseFloat(row.roi))) {
+      errors.push("ROI muss eine gültige Zahl sein");
     }
 
     // Validate URLs
@@ -242,10 +238,14 @@ export class GoogleSheetsService {
 
   transformRowForDatabase(row: GoogleSheetsRow, submittedBy: string) {
     const costPrice = parseFloat(row.costPrice);
-    const salePrice = parseFloat(row.salePrice);
-    const profit = salePrice - costPrice;
-    const profitMargin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
-    const roi = costPrice > 0 ? (profit / costPrice) * 100 : 0;
+    
+    // Use calculated values from sheet or derive them
+    const profit = row.profit ? parseFloat(row.profit) : 0;
+    const profitMargin = row.profitMargin ? parseFloat(row.profitMargin) : 0;
+    const roi = row.roi ? parseFloat(row.roi) : 0;
+    
+    // Calculate salePrice from profit if not provided
+    const salePrice = costPrice + profit;
 
     return {
       datum: row.datum ? new Date(row.datum) : new Date(),
@@ -258,16 +258,17 @@ export class GoogleSheetsService {
       amazonUrl: row.amazonUrl || null,
       costPrice: costPrice.toString(),
       salePrice: salePrice.toString(),
+      buyBoxCurrent: row.buyBoxCurrent ? parseFloat(row.buyBoxCurrent).toString() : null,
       buyBoxAverage90Days: row.buyBoxAverage90Days ? parseFloat(row.buyBoxAverage90Days).toString() : null,
       profit: profit.toString(),
       profitMargin: profitMargin.toString(),
       roi: roi.toString(),
       estimatedSales: row.estimatedSales ? parseInt(row.estimatedSales) : null,
-      fbaSellerCount: row.fbaSellerCount ? parseInt(row.fbaSellerCount) : null,
-      fbmSellerCount: row.fbmSellerCount ? parseInt(row.fbmSellerCount) : null,
-      productReview: row.productReview ? parseFloat(row.productReview).toString() : null,
+      fbaSellerCount: null, // Not in new structure
+      fbmSellerCount: null, // Not in new structure
+      productReview: null, // Not in new structure
       notes: row.notes || null,
-      sourcingMethod: row.sourcingMethod || 'google-sheets',
+      sourcingMethod: 'google-sheets', // Fixed value for new imports
       submittedBy,
     };
   }
@@ -299,16 +300,16 @@ export class GoogleSheetsService {
     try {
       const sheets = await this.getSheets();
       
-      // Get headers
+      // Get headers (16 columns: A-P)
       const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A1:AB1',
+        range: 'Sourcing!A1:P1',
       });
       
-      // Get data
+      // Get data (16 columns: A-P)
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Sourcing!A2:AB',
+        range: 'Sourcing!A2:P',
       });
 
       const headers = headerResponse.data.values?.[0] || [];

@@ -57,6 +57,7 @@ export const sourcing = pgTable("sourcing", {
   amazonUrl: text("amazon_url"),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }).notNull(),
   salePrice: decimal("sale_price", { precision: 10, scale: 2 }).notNull(),
+  buyBoxCurrent: decimal("buy_box_current", { precision: 10, scale: 2 }),
   buyBoxAverage90Days: decimal("buy_box_average_90_days", { precision: 10, scale: 2 }),
   profit: decimal("profit", { precision: 10, scale: 2 }),
   profitMargin: decimal("profit_margin", { precision: 5, scale: 2 }),
