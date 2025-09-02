@@ -410,8 +410,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("🔍 Starting Google Sheets connection test...");
       console.log("📋 Environment check:", {
         hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+        hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
         hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-        hasCredentialsFile: require('fs').existsSync('./server/googleSheetsCredentials.json')
+        spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
       });
       
       const result = await googleSheetsService.testConnection();
@@ -425,6 +426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString(),
             environment: {
               hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
               spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
             }
@@ -437,6 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString(),
             environment: {
               hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+              hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
               spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID
             }

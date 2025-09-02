@@ -35,45 +35,57 @@ export class GoogleSheetsService {
     }
     
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-    
-    // Try environment variable first, fallback to file
-    let auth;
-    
-    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-      // Use service account from environment variable
-      const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-      auth = new google.auth.GoogleAuth({
-        credentials: credentials,
-        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-      });
-    } else {
-      // Fallback to file-based credentials
-      const credentialsPath = path.join(__dirname, 'googleSheetsCredentials.json');
-      auth = new google.auth.GoogleAuth({
-        keyFile: credentialsPath,
-        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-      });
+    this.sheets = null; // Initialize later
+  }
+
+  private async getGoogleAuth() {
+    const raw = process.env.GOOGLE_CREDENTIALS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    if (!raw) {
+      throw new Error("GOOGLE_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required");
     }
 
-    this.sheets = google.sheets({ version: 'v4', auth });
+    const creds = JSON.parse(raw);
+    
+    // WICHTIG: Newlines im Private Key korrekt einsetzen
+    if (creds.private_key && creds.private_key.includes("\\n")) {
+      creds.private_key = creds.private_key.replace(/\\n/g, "\n");
+    }
+
+    return new google.auth.GoogleAuth({
+      credentials: {
+        client_email: creds.client_email,
+        private_key: creds.private_key,
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
+  }
+
+  private async getSheets() {
+    if (!this.sheets) {
+      const auth = await this.getGoogleAuth();
+      this.sheets = google.sheets({ version: "v4", auth });
+    }
+    return this.sheets;
   }
 
   async testConnection(): Promise<{ success: boolean; spreadsheet?: any; error?: string }> {
     try {
+      const sheets = await this.getSheets();
+      
       // First test - get spreadsheet metadata
-      const metadataResponse = await this.sheets.spreadsheets.get({
+      const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
       });
 
       const spreadsheet = metadataResponse.data;
 
       // Second test - try to read headers and data from Sourcing tab
-      const headerResponse = await this.sheets.spreadsheets.values.get({
+      const headerResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
         range: 'Sourcing!A1:AB1', // Headers
       });
       
-      const dataResponse = await this.sheets.spreadsheets.values.get({
+      const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
         range: 'Sourcing!A2:AB10', // Data rows 2-10
       });
@@ -101,7 +113,8 @@ export class GoogleSheetsService {
 
   async fetchSheetData(range: string = "Sourcing!A2:AB"): Promise<GoogleSheetsRow[]> {
     try {
-      const response = await this.sheets.spreadsheets.values.get({
+      const sheets = await this.getSheets();
+      const response = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
         range: range,
       });
