@@ -1,5 +1,9 @@
 import { google } from 'googleapis';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface GoogleSheetsRow {
   datum?: string;
@@ -32,12 +36,24 @@ export class GoogleSheetsService {
     
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
     
-    // Load service account credentials
-    const credentialsPath = path.join(__dirname, 'googleSheetsCredentials.json');
-    const auth = new google.auth.GoogleAuth({
-      keyFile: credentialsPath,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
+    // Try environment variable first, fallback to file
+    let auth;
+    
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      // Use service account from environment variable
+      const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+    } else {
+      // Fallback to file-based credentials
+      const credentialsPath = path.join(__dirname, 'googleSheetsCredentials.json');
+      auth = new google.auth.GoogleAuth({
+        keyFile: credentialsPath,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+    }
 
     this.sheets = google.sheets({ version: 'v4', auth });
   }
