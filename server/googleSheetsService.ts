@@ -35,7 +35,8 @@ export class GoogleSheetsService {
 
   constructor() {
     // Use environment variable for spreadsheet ID
-    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "1oyMW2kEXEifC5KkN_kX7KmiMoC_oKSZQqEU7r_YUdTc";
+    this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "1S06m7tQuejVvVpStS-gNKZMzrvdEsRCPuipxv1vEiTM";
+    console.log(`🔧 GoogleSheetsService initialized with ID: ${this.spreadsheetId}`);
     this.sheets = null; // Initialize later
   }
 
