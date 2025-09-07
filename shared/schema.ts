@@ -49,6 +49,7 @@ export const sourcing = pgTable("sourcing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   datum: timestamp("datum"),
   imageUrl: text("image_url"),
+  image: text("image"),
   brand: varchar("brand"),
   productName: text("product_name").notNull(),
   asin: varchar("asin").notNull(),
