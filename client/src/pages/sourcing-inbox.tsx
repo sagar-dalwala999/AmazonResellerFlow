@@ -44,10 +44,17 @@ export default function SourcingInbox() {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<{rowIndex: number, item: Record<string, string>} | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<{
+    rowIndex: number;
+    item: Record<string, string>;
+  } | null>(null);
 
   // Fetch sourcing items directly from Google Sheets
-  const { data: sheetsData, isLoading, refetch } = useQuery({
+  const {
+    data: sheetsData,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["/api/sourcing/sheets"],
     queryFn: () => apiRequest("/api/sourcing/sheets"),
     staleTime: 0, // Always consider data stale
@@ -73,7 +80,9 @@ export default function SourcingInbox() {
   const refreshSheetsMutation = useMutation({
     mutationFn: async () => {
       // Invalidate and refetch the data immediately
-      await queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/sourcing/sheets"],
+      });
       return refetch();
     },
     onSuccess: () => {
@@ -93,8 +102,18 @@ export default function SourcingInbox() {
 
   // Mark as winner mutation - updates Google Sheets directly
   const markAsWinnerMutation = useMutation({
-    mutationFn: async ({ rowIndex, productReview }: { rowIndex: number, productReview: string }) => {
-      return apiRequest(`/api/sourcing/sheets/${rowIndex}/product-review`, 'PATCH', { productReview });
+    mutationFn: async ({
+      rowIndex,
+      productReview,
+    }: {
+      rowIndex: number;
+      productReview: string;
+    }) => {
+      return apiRequest(
+        `/api/sourcing/sheets/${rowIndex}/product-review`,
+        "PATCH",
+        { productReview },
+      );
     },
     onSuccess: (data, variables) => {
       toast({
@@ -119,7 +138,10 @@ export default function SourcingInbox() {
   });
 
   // Show confirmation modal
-  const showMarkAsWinnerConfirm = (rowIndex: number, item: Record<string, string>) => {
+  const showMarkAsWinnerConfirm = (
+    rowIndex: number,
+    item: Record<string, string>,
+  ) => {
     setSelectedProduct({ rowIndex, item });
     setConfirmModalOpen(true);
   };
@@ -129,7 +151,7 @@ export default function SourcingInbox() {
     if (selectedProduct) {
       markAsWinnerMutation.mutate({
         rowIndex: selectedProduct.rowIndex,
-        productReview: "Winner"
+        productReview: "Winner",
       });
     }
   };
@@ -307,7 +329,7 @@ export default function SourcingInbox() {
               <div className="flex items-center space-x-3 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-xl backdrop-blur-sm">
                 <div className="w-3 h-3 bg-blue-400 rounded-full animate-glow"></div>
                 <span className="text-sm font-medium text-blue-600">
-                  {sourcingItems.length} items
+                  {filteredItems.length} items
                 </span>
               </div>
               <button
@@ -387,7 +409,8 @@ export default function SourcingInbox() {
                       </span>
                       {sheetsData?.lastUpdated && (
                         <span className="text-xs text-muted-foreground">
-                          Last updated: {new Date(sheetsData.lastUpdated).toLocaleString()}
+                          Last updated:{" "}
+                          {new Date(sheetsData.lastUpdated).toLocaleString()}
                         </span>
                       )}
                     </div>
@@ -407,33 +430,36 @@ export default function SourcingInbox() {
                     <div className="w-full">
                       <div className="grid grid-cols-1 gap-4">
                         {filteredItems.map(
-                          (
-                            item: Record<string, string>,
-                            rowIndex: number,
-                          ) => {
-                            const isWinner = item['Product Review']?.toLowerCase() === 'winner';
+                          (item: Record<string, string>, rowIndex: number) => {
+                            const isWinner =
+                              item["Product Review"]?.toLowerCase() ===
+                              "winner";
                             return (
                               <Card
                                 key={rowIndex}
                                 data-testid={`card-sourcing-${rowIndex}`}
-                                className={`p-4 ${isWinner ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
+                                className={`p-4 ${isWinner ? "border-green-200 bg-green-50" : "border-gray-200"}`}
                               >
                                 <div className="flex gap-4">
                                   {/* Product Image */}
                                   <div className="flex-shrink-0">
-                                    {item['Image URL'] ? (
+                                    {item["Image URL"] ? (
                                       <img
-                                        src={item['Image URL']}
-                                        alt={item['Product Name'] || 'Product'}
+                                        src={item["Image URL"]}
+                                        alt={item["Product Name"] || "Product"}
                                         className="w-24 h-24 object-cover rounded-lg border"
                                         onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04IDlIMTZWMTFIOFY5WiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNOCAxM0gxNlYxNUg4VjEzWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
+                                          const target =
+                                            e.target as HTMLImageElement;
+                                          target.src =
+                                            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04IDlIMTZWMTFIOFY5WiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNOCAxM0gxNlYxNUg4VjEzWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K";
                                         }}
                                       />
                                     ) : (
                                       <div className="w-24 h-24 bg-gray-100 rounded-lg border flex items-center justify-center">
-                                        <span className="text-gray-400 text-xs">No Image</span>
+                                        <span className="text-gray-400 text-xs">
+                                          No Image
+                                        </span>
                                       </div>
                                     )}
                                   </div>
@@ -443,30 +469,54 @@ export default function SourcingInbox() {
                                     {/* Column 1: Basic Info */}
                                     <div className="space-y-2">
                                       <div>
-                                        <p className="text-xs text-gray-500">Date</p>
-                                        <p className="text-sm font-medium">{formatCellValue(item['Datum'] || '', 'Datum')}</p>
+                                        <p className="text-xs text-gray-500">
+                                          Date
+                                        </p>
+                                        <p className="text-sm font-medium">
+                                          {formatCellValue(
+                                            item["Datum"] || "",
+                                            "Datum",
+                                          )}
+                                        </p>
                                       </div>
                                       <div>
-                                        <p className="text-xs text-gray-500">Brand</p>
-                                        <p className="text-sm font-medium">{item['Brand'] || '-'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          Brand
+                                        </p>
+                                        <p className="text-sm font-medium">
+                                          {item["Brand"] || "-"}
+                                        </p>
                                       </div>
                                       <div>
-                                        <p className="text-xs text-gray-500">ASIN</p>
-                                        <p className="text-sm font-mono">{item['ASIN'] || '-'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          ASIN
+                                        </p>
+                                        <p className="text-sm font-mono">
+                                          {item["ASIN"] || "-"}
+                                        </p>
                                       </div>
                                     </div>
 
                                     {/* Column 2: Product Details */}
                                     <div className="space-y-2">
                                       <div>
-                                        <p className="text-xs text-gray-500">Product Name</p>
-                                        <p className="text-sm font-medium line-clamp-2" title={item['Product Name']}>
-                                          {item['Product Name'] || '-'}
+                                        <p className="text-xs text-gray-500">
+                                          Product Name
+                                        </p>
+                                        <p
+                                          className="text-sm font-medium line-clamp-2"
+                                          title={item["Product Name"]}
+                                        >
+                                          {item["Product Name"] || "-"}
                                         </p>
                                       </div>
                                       <div>
-                                        <p className="text-xs text-gray-500">EAN Barcode</p>
-                                        <p className="text-sm font-mono text-xs">{item['EAN Barcode'] || '-'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          EAN Barcode
+                                        </p>
+                                        <p className="text-sm font-mono text-xs">
+                                          {item["EAN Barcode"] || "-"}
+                                        </p>
                                       </div>
                                     </div>
 
@@ -474,27 +524,47 @@ export default function SourcingInbox() {
                                     <div className="space-y-2">
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <p className="text-xs text-gray-500">Cost Price</p>
-                                          <p className="text-sm font-bold text-red-600">{item['Cost Price'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Cost Price
+                                          </p>
+                                          <p className="text-sm font-bold text-red-600">
+                                            {item["Cost Price"] || "-"}
+                                          </p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-gray-500">Sale Price</p>
-                                          <p className="text-sm font-bold text-green-600">{item['Sale Price'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Sale Price
+                                          </p>
+                                          <p className="text-sm font-bold text-green-600">
+                                            {item["Sale Price"] || "-"}
+                                          </p>
                                         </div>
                                       </div>
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <p className="text-xs text-gray-500">Profit</p>
-                                          <p className="text-sm font-bold text-blue-600">{item['Profit'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Profit
+                                          </p>
+                                          <p className="text-sm font-bold text-blue-600">
+                                            {item["Profit"] || "-"}
+                                          </p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-gray-500">Margin</p>
-                                          <p className="text-sm font-bold">{item['Profit Margin'] || '-'}%</p>
+                                          <p className="text-xs text-gray-500">
+                                            Margin
+                                          </p>
+                                          <p className="text-sm font-bold">
+                                            {item["Profit Margin"] || "-"}%
+                                          </p>
                                         </div>
                                       </div>
                                       <div>
-                                        <p className="text-xs text-gray-500">ROI</p>
-                                        <p className="text-sm font-bold text-purple-600">{item['R.O.I.'] || '-'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          ROI
+                                        </p>
+                                        <p className="text-sm font-bold text-purple-600">
+                                          {item["R.O.I."] || "-"}
+                                        </p>
                                       </div>
                                     </div>
 
@@ -502,39 +572,70 @@ export default function SourcingInbox() {
                                     <div className="space-y-2">
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <p className="text-xs text-gray-500">Est. Sales</p>
-                                          <p className="text-sm font-medium">{item['Estimated Sales'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Est. Sales
+                                          </p>
+                                          <p className="text-sm font-medium">
+                                            {item["Estimated Sales"] || "-"}
+                                          </p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-gray-500">Buy Box</p>
-                                          <p className="text-sm font-medium">{item['Buy Box (Average Last 90 Days)'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Buy Box
+                                          </p>
+                                          <p className="text-sm font-medium">
+                                            {item[
+                                              "Buy Box (Average Last 90 Days)"
+                                            ] || "-"}
+                                          </p>
                                         </div>
                                       </div>
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                          <p className="text-xs text-gray-500">FBA Sellers</p>
-                                          <p className="text-sm">{item['FBA Seller Count'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            FBA Sellers
+                                          </p>
+                                          <p className="text-sm">
+                                            {item["FBA Seller Count"] || "-"}
+                                          </p>
                                         </div>
                                         <div>
-                                          <p className="text-xs text-gray-500">FBM Sellers</p>
-                                          <p className="text-sm">{item['FBM Seller Count'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            FBM Sellers
+                                          </p>
+                                          <p className="text-sm">
+                                            {item["FBM Seller Count"] || "-"}
+                                          </p>
                                         </div>
                                       </div>
                                       <div className="space-y-2">
                                         <div>
-                                          <p className="text-xs text-gray-500">Sourcing Method</p>
-                                          <p className="text-sm">{item['Sourcing Method'] || '-'}</p>
+                                          <p className="text-xs text-gray-500">
+                                            Sourcing Method
+                                          </p>
+                                          <p className="text-sm">
+                                            {item["Sourcing Method"] || "-"}
+                                          </p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           {!isWinner ? (
                                             <Button
                                               size="sm"
                                               className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 h-6"
-                                              onClick={() => showMarkAsWinnerConfirm(rowIndex, item)}
+                                              onClick={() =>
+                                                showMarkAsWinnerConfirm(
+                                                  rowIndex,
+                                                  item,
+                                                )
+                                              }
                                               data-testid={`button-mark-winner-${rowIndex}`}
-                                              disabled={markAsWinnerMutation.isPending}
+                                              disabled={
+                                                markAsWinnerMutation.isPending
+                                              }
                                             >
-                                              {markAsWinnerMutation.isPending ? 'Updating...' : 'Mark Winner'}
+                                              {markAsWinnerMutation.isPending
+                                                ? "Updating..."
+                                                : "Mark Winner"}
                                             </Button>
                                           ) : (
                                             <span className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full font-medium">
@@ -548,9 +649,9 @@ export default function SourcingInbox() {
 
                                   {/* Quick Links */}
                                   <div className="flex-shrink-0 flex flex-col gap-1">
-                                    {item['Amazon URL'] && (
+                                    {item["Amazon URL"] && (
                                       <a
-                                        href={item['Amazon URL']}
+                                        href={item["Amazon URL"]}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-blue-600 hover:text-blue-800"
@@ -558,9 +659,9 @@ export default function SourcingInbox() {
                                         <ExternalLink className="h-4 w-4" />
                                       </a>
                                     )}
-                                    {item['Source URL'] && (
+                                    {item["Source URL"] && (
                                       <a
-                                        href={item['Source URL']}
+                                        href={item["Source URL"]}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-gray-600 hover:text-gray-800"
@@ -572,7 +673,7 @@ export default function SourcingInbox() {
                                 </div>
                               </Card>
                             );
-                          }
+                          },
                         )}
                       </div>
                       <div className="mt-4 text-sm text-muted-foreground">
@@ -618,38 +719,54 @@ export default function SourcingInbox() {
             <DialogHeader>
               <DialogTitle>Mark as Winner</DialogTitle>
               <DialogDescription>
-                Are you sure you want to mark this product as "Winner" in Google Sheets?
+                Are you sure you want to mark this product as "Winner" in Google
+                Sheets?
               </DialogDescription>
             </DialogHeader>
             {selectedProduct && (
               <div className="py-4">
                 <div className="space-y-2">
-                  <p><strong>Product:</strong> {selectedProduct.item['Product Name'] || 'Unknown'}</p>
-                  <p><strong>Brand:</strong> {selectedProduct.item['Brand'] || 'Unknown'}</p>
-                  <p><strong>ASIN:</strong> {selectedProduct.item['ASIN'] || 'Unknown'}</p>
-                  <p><strong>Row:</strong> {selectedProduct.rowIndex + 1}</p>
+                  <p>
+                    <strong>Product:</strong>{" "}
+                    {selectedProduct.item["Product Name"] || "Unknown"}
+                  </p>
+                  <p>
+                    <strong>Brand:</strong>{" "}
+                    {selectedProduct.item["Brand"] || "Unknown"}
+                  </p>
+                  <p>
+                    <strong>ASIN:</strong>{" "}
+                    {selectedProduct.item["ASIN"] || "Unknown"}
+                  </p>
+                  <p>
+                    <strong>Row:</strong> {selectedProduct.rowIndex + 1}
+                  </p>
                 </div>
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                   <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> This will update the "Product Review" column in your Google Sheets to "Winner" and cannot be undone through this interface.
+                    <strong>Note:</strong> This will update the "Product Review"
+                    column in your Google Sheets to "Winner" and cannot be
+                    undone through this interface.
                   </p>
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setConfirmModalOpen(false)}
                 disabled={markAsWinnerMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleConfirmMarkAsWinner}
                 disabled={markAsWinnerMutation.isPending}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {markAsWinnerMutation.isPending ? 'Updating...' : 'Yes, Mark as Winner'}
+                {markAsWinnerMutation.isPending
+                  ? "Updating..."
+                  : "Yes, Mark as Winner"}
               </Button>
             </DialogFooter>
           </DialogContent>

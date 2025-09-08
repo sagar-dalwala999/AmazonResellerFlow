@@ -542,6 +542,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint to update Notes in Google Sheets
+  app.patch('/api/sourcing/sheets/:rowIndex/notes', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      const { notes } = req.body;
+
+      if (isNaN(rowIndex) || rowIndex < 0) {
+        return res.status(400).json({ success: false, message: "Invalid row index" });
+      }
+
+      if (notes === undefined || notes === null) {
+        return res.status(400).json({ success: false, message: "Notes value is required" });
+      }
+
+      console.log(`🔄 Updating Notes for row ${rowIndex} to "${notes}"`);
+      
+      const result = await googleSheetsService.updateNotes(rowIndex, notes);
+      
+      res.json({
+        success: true,
+        message: `Notes updated for row ${rowIndex + 1}`,
+        rowIndex,
+        newValue: notes
+      });
+    } catch (error) {
+      console.error("❌ Error updating Notes:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to update Notes in Google Sheets",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub; // Use authenticated user

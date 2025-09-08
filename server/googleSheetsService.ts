@@ -447,6 +447,52 @@ export class GoogleSheetsService {
       throw error;
     }
   }
+
+  async updateNotes(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Notes for row ${rowIndex + 2} to "${newValue}"`);
+      
+      const sheets = await this.getSheets();
+      
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+
+      // Find the correct sheet name
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
+      console.log(`🎯 Updating Notes in sheet: "${sheetName}"`);
+      
+      // Notes is column T (20th column in our A-U range)
+      const columnLetter = 'T';
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`; // +2 because row 1 is headers and we're 0-indexed
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[newValue]]
+        }
+      });
+
+      console.log(`✅ Successfully updated Notes at ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error updating Notes:', error);
+      throw error;
+    }
+  }
 }
 
 // Export utility functions for external use
