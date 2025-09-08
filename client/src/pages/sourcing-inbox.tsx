@@ -235,10 +235,20 @@ export default function SourcingInbox() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Sourcing Inbox</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-4xl font-bold gradient-text">Sourcing Inbox</h1>
+          <p className="text-muted-foreground mt-2">
             Import deals from "Sourcing Sheet" spreadsheet (Tab: "Sourcing")
           </p>
+          <div className="flex items-center space-x-4 mt-4 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-1">
+              <i className="fas fa-database text-primary"></i>
+              <span>{sourcingItems.length} items</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <i className="fas fa-clock text-primary"></i>
+              <span>Last sync: {new Date().toLocaleTimeString()}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button

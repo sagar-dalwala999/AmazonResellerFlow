@@ -89,10 +89,20 @@ export default function VAPerformance() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">VA Performance</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-4xl font-bold gradient-text">VA Performance</h1>
+          <p className="text-muted-foreground mt-2">
             Weekly performance metrics and success tracking
           </p>
+          <div className="flex items-center space-x-4 mt-4 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-1">
+              <i className="fas fa-chart-line text-primary"></i>
+              <span>{selectedWeeks} weeks tracking</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <i className="fas fa-user text-primary"></i>
+              <span>{isAdmin ? 'Admin view' : 'Personal metrics'}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           {isAdmin && (
