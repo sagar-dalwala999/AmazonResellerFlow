@@ -14,6 +14,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -42,6 +43,8 @@ export default function SourcingInbox() {
   const queryClient = useQueryClient();
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<{rowIndex: number, item: Record<string, string>} | null>(null);
 
   // Fetch sourcing items directly from Google Sheets
   const { data: sheetsData, isLoading, refetch } = useQuery({
@@ -88,16 +91,53 @@ export default function SourcingInbox() {
     },
   });
 
-  // Mark as winner function - updates locally and shows notification
-  const markAsWinner = (rowIndex: number, item: Record<string, string>) => {
-    toast({
-      title: "Marked as Winner",
-      description: `Product "${item['Product Name'] || 'Unknown'}" marked as winner locally. Update your Google Sheet to persist this change.`,
-      variant: "default",
-    });
-    
-    // For future enhancement: This could update the Google Sheet directly
-    // For now, we just show a notification to the user
+  // Mark as winner mutation - updates Google Sheets directly
+  const markAsWinnerMutation = useMutation({
+    mutationFn: async ({ rowIndex, productReview }: { rowIndex: number, productReview: string }) => {
+      return apiRequest(`/api/sourcing/sheets/${rowIndex}/product-review`, {
+        method: 'PATCH',
+        body: JSON.stringify({ productReview }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Success!",
+        description: `Product marked as "Winner" in Google Sheets (Row ${variables.rowIndex + 1})`,
+        variant: "default",
+      });
+      // Invalidate and refetch the sheets data to show the update
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+      setConfirmModalOpen(false);
+      setSelectedProduct(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update Google Sheets: ${error.message}`,
+        variant: "destructive",
+      });
+      setConfirmModalOpen(false);
+      setSelectedProduct(null);
+    },
+  });
+
+  // Show confirmation modal
+  const showMarkAsWinnerConfirm = (rowIndex: number, item: Record<string, string>) => {
+    setSelectedProduct({ rowIndex, item });
+    setConfirmModalOpen(true);
+  };
+
+  // Handle confirm mark as winner
+  const handleConfirmMarkAsWinner = () => {
+    if (selectedProduct) {
+      markAsWinnerMutation.mutate({
+        rowIndex: selectedProduct.rowIndex,
+        productReview: "Winner"
+      });
+    }
   };
 
   // Google Sheets connection test mutation
@@ -496,10 +536,11 @@ export default function SourcingInbox() {
                                             <Button
                                               size="sm"
                                               className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 h-6"
-                                              onClick={() => markAsWinner(rowIndex, item)}
+                                              onClick={() => showMarkAsWinnerConfirm(rowIndex, item)}
                                               data-testid={`button-mark-winner-${rowIndex}`}
+                                              disabled={markAsWinnerMutation.isPending}
                                             >
-                                              Mark Winner
+                                              {markAsWinnerMutation.isPending ? 'Updating...' : 'Mark Winner'}
                                             </Button>
                                           ) : (
                                             <span className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full font-medium">
@@ -574,6 +615,49 @@ export default function SourcingInbox() {
                 </div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirmation Modal for Mark as Winner */}
+        <Dialog open={confirmModalOpen} onOpenChange={setConfirmModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark as Winner</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to mark this product as "Winner" in Google Sheets?
+              </DialogDescription>
+            </DialogHeader>
+            {selectedProduct && (
+              <div className="py-4">
+                <div className="space-y-2">
+                  <p><strong>Product:</strong> {selectedProduct.item['Product Name'] || 'Unknown'}</p>
+                  <p><strong>Brand:</strong> {selectedProduct.item['Brand'] || 'Unknown'}</p>
+                  <p><strong>ASIN:</strong> {selectedProduct.item['ASIN'] || 'Unknown'}</p>
+                  <p><strong>Row:</strong> {selectedProduct.rowIndex + 1}</p>
+                </div>
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> This will update the "Product Review" column in your Google Sheets to "Winner" and cannot be undone through this interface.
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setConfirmModalOpen(false)}
+                disabled={markAsWinnerMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleConfirmMarkAsWinner}
+                disabled={markAsWinnerMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {markAsWinnerMutation.isPending ? 'Updating...' : 'Yes, Mark as Winner'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

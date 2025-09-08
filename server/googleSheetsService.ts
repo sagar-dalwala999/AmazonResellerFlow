@@ -63,7 +63,7 @@ export class GoogleSheetsService {
         client_email: creds.client_email,
         private_key: creds.private_key,
       },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
   }
 
@@ -398,6 +398,52 @@ export class GoogleSheetsService {
       return { headers, items };
     } catch (error) {
       console.error("Error reading sourcing sheet:", error);
+      throw error;
+    }
+  }
+
+  async updateProductReview(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Product Review for row ${rowIndex + 2} to "${newValue}"`);
+      
+      const sheets = await this.getSheets();
+      
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+
+      // Find the correct sheet name
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
+      console.log(`🎯 Updating in sheet: "${sheetName}"`);
+      
+      // Product Review is column S (19th column in our A-U range)
+      const columnLetter = 'S';
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`; // +2 because row 1 is headers and we're 0-indexed
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[newValue]]
+        }
+      });
+
+      console.log(`✅ Successfully updated ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error updating Product Review:', error);
       throw error;
     }
   }
