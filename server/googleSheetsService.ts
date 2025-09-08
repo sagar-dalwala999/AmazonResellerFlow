@@ -663,9 +663,12 @@ export class GoogleSheetsService {
           item[header] = row[index] || "";
         });
         return item;
+      }).filter((item: Record<string, string>) => {
+        // Filter out rows where all columns are blank
+        return Object.values(item).some(value => value && value.trim() !== "");
       });
 
-      console.log(`📦 Found ${items.length} items in Purchasing sheet`);
+      console.log(`📦 Found ${items.length} non-empty items in Purchasing sheet (filtered from ${rows.length} total rows)`);
       return { headers, items };
     } catch (error) {
       console.error("Error reading Purchasing sheet:", error);
