@@ -371,80 +371,174 @@ export default function SourcingInbox() {
                     </div>
                   ) : (
                     <div className="w-full">
-                      <div
-                        className="overflow-x-auto rounded-md border"
-                        style={{ maxWidth: "100%" }}
-                      >
-                        <Table className="w-max min-w-full">
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="font-semibold sticky left-0 bg-background border-r min-w-[60px] z-10">
-                                #
-                              </TableHead>
-                              {headers.map((header: string, index: number) => (
-                                <TableHead
-                                  key={index}
-                                  className="font-semibold min-w-[150px] whitespace-nowrap px-4"
-                                >
-                                  {header ||
-                                    `Column ${String.fromCharCode(65 + index)}`}
-                                </TableHead>
-                              ))}
-                              <TableHead className="font-semibold min-w-[120px] whitespace-nowrap px-4">
-                                Actions
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredItems.map(
-                              (
-                                item: Record<string, string>,
-                                rowIndex: number,
-                              ) => {
-                                const isWinner = item['Product Review']?.toLowerCase() === 'winner';
-                                return (
-                                <TableRow
-                                  key={rowIndex}
-                                  data-testid={`row-sourcing-${rowIndex}`}
-                                  className={isWinner ? 'bg-green-50 hover:bg-green-100 border-green-200' : ''}
-                                >
-                                  <TableCell className="font-medium sticky left-0 bg-background border-r z-10">
-                                    {rowIndex + 1}
-                                  </TableCell>
-                                  {headers.map(
-                                    (header: string, colIndex: number) => (
-                                      <TableCell
-                                        key={colIndex}
-                                        className="min-w-[150px] whitespace-nowrap px-4"
-                                      >
-                                        {formatCellValue(
-                                          item[header] || "",
-                                          header,
-                                        )}
-                                      </TableCell>
-                                    ),
-                                  )}
-                                  <TableCell className="min-w-[120px] whitespace-nowrap px-4">
-                                    {!isWinner ? (
-                                      <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-6"
-                                        onClick={() => markAsWinner(rowIndex, item)}
-                                        data-testid={`button-mark-winner-${rowIndex}`}
-                                      >
-                                        Mark Winner
-                                      </Button>
+                      <div className="grid grid-cols-1 gap-4">
+                        {filteredItems.map(
+                          (
+                            item: Record<string, string>,
+                            rowIndex: number,
+                          ) => {
+                            const isWinner = item['Product Review']?.toLowerCase() === 'winner';
+                            return (
+                              <Card
+                                key={rowIndex}
+                                data-testid={`card-sourcing-${rowIndex}`}
+                                className={`p-4 ${isWinner ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}
+                              >
+                                <div className="flex gap-4">
+                                  {/* Product Image */}
+                                  <div className="flex-shrink-0">
+                                    {item['Image URL'] ? (
+                                      <img
+                                        src={item['Image URL']}
+                                        alt={item['Product Name'] || 'Product'}
+                                        className="w-24 h-24 object-cover rounded-lg border"
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04IDlIMTZWMTFIOFY5WiIgZmlsbD0iIzlDQTNBRiIvPgo8cGF0aCBkPSJNOCAxM0gxNlYxNUg4VjEzWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
+                                        }}
+                                      />
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                                        ✓ Winner
-                                      </span>
+                                      <div className="w-24 h-24 bg-gray-100 rounded-lg border flex items-center justify-center">
+                                        <span className="text-gray-400 text-xs">No Image</span>
+                                      </div>
                                     )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
+                                  </div>
+
+                                  {/* Main Content */}
+                                  <div className="flex-1 grid grid-cols-4 gap-4">
+                                    {/* Column 1: Basic Info */}
+                                    <div className="space-y-2">
+                                      <div>
+                                        <p className="text-xs text-gray-500">Date</p>
+                                        <p className="text-sm font-medium">{formatCellValue(item['Datum'] || '', 'Datum')}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500">Brand</p>
+                                        <p className="text-sm font-medium">{item['Brand'] || '-'}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500">ASIN</p>
+                                        <p className="text-sm font-mono">{item['ASIN'] || '-'}</p>
+                                      </div>
+                                    </div>
+
+                                    {/* Column 2: Product Details */}
+                                    <div className="space-y-2">
+                                      <div>
+                                        <p className="text-xs text-gray-500">Product Name</p>
+                                        <p className="text-sm font-medium line-clamp-2" title={item['Product Name']}>
+                                          {item['Product Name'] || '-'}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500">EAN Barcode</p>
+                                        <p className="text-sm font-mono text-xs">{item['EAN Barcode'] || '-'}</p>
+                                      </div>
+                                    </div>
+
+                                    {/* Column 3: Pricing & Profit */}
+                                    <div className="space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <p className="text-xs text-gray-500">Cost Price</p>
+                                          <p className="text-sm font-bold text-red-600">{item['Cost Price'] || '-'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">Sale Price</p>
+                                          <p className="text-sm font-bold text-green-600">{item['Sale Price'] || '-'}</p>
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <p className="text-xs text-gray-500">Profit</p>
+                                          <p className="text-sm font-bold text-blue-600">{item['Profit'] || '-'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">Margin</p>
+                                          <p className="text-sm font-bold">{item['Profit Margin'] || '-'}%</p>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500">ROI</p>
+                                        <p className="text-sm font-bold text-purple-600">{item['R.O.I.'] || '-'}</p>
+                                      </div>
+                                    </div>
+
+                                    {/* Column 4: Market Data & Actions */}
+                                    <div className="space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <p className="text-xs text-gray-500">Est. Sales</p>
+                                          <p className="text-sm font-medium">{item['Estimated Sales'] || '-'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">Buy Box</p>
+                                          <p className="text-sm font-medium">{item['Buy Box (Average Last 90 Days)'] || '-'}</p>
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <p className="text-xs text-gray-500">FBA Sellers</p>
+                                          <p className="text-sm">{item['FBA Seller Count'] || '-'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">FBM Sellers</p>
+                                          <p className="text-sm">{item['FBM Seller Count'] || '-'}</p>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <div>
+                                          <p className="text-xs text-gray-500">Sourcing Method</p>
+                                          <p className="text-sm">{item['Sourcing Method'] || '-'}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {!isWinner ? (
+                                            <Button
+                                              size="sm"
+                                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 h-6"
+                                              onClick={() => markAsWinner(rowIndex, item)}
+                                              data-testid={`button-mark-winner-${rowIndex}`}
+                                            >
+                                              Mark Winner
+                                            </Button>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full font-medium">
+                                              ✓ Winner
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Quick Links */}
+                                  <div className="flex-shrink-0 flex flex-col gap-1">
+                                    {item['Amazon URL'] && (
+                                      <a
+                                        href={item['Amazon URL']}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                    {item['Source URL'] && (
+                                      <a
+                                        href={item['Source URL']}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-gray-600 hover:text-gray-800"
+                                      >
+                                        <ExternalLink className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </Card>
+                            );
+                          }
+                        )}
                       </div>
                       <div className="mt-4 text-sm text-muted-foreground">
                         Showing {filteredItems.length} rows with{" "}
