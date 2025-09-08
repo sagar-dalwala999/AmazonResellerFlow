@@ -1,13 +1,38 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Download, RefreshCw, Bug, AlertTriangle, ExternalLink } from "lucide-react";
+import {
+  Download,
+  RefreshCw,
+  Bug,
+  AlertTriangle,
+  ExternalLink,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
 
@@ -19,8 +44,8 @@ export default function SourcingInbox() {
 
   // Fetch sourcing items directly from Google Sheets
   const { data: sheetsData, isLoading } = useQuery({
-    queryKey: ['/api/sourcing/sheets'],
-    queryFn: () => apiRequest('/api/sourcing/sheets'),
+    queryKey: ["/api/sourcing/sheets"],
+    queryFn: () => apiRequest("/api/sourcing/sheets"),
   });
 
   const sourcingItems = sheetsData?.items || [];
@@ -31,13 +56,13 @@ export default function SourcingInbox() {
     // Check if at least one field has content
     return headers.some((header: string) => {
       const value = item[header];
-      return value && value.trim() !== '';
+      return value && value.trim() !== "";
     });
   });
 
   // Refresh sheets data mutation
   const refreshSheetsMutation = useMutation({
-    mutationFn: () => apiRequest('/api/sourcing/sheets'),
+    mutationFn: () => apiRequest("/api/sourcing/sheets"),
     onSuccess: () => {
       toast({
         title: "Success",
@@ -57,7 +82,7 @@ export default function SourcingInbox() {
 
   // Google Sheets connection test mutation
   const testConnectionMutation = useMutation({
-    mutationFn: () => apiRequest('/api/integrations/google-sheets/test'),
+    mutationFn: () => apiRequest("/api/integrations/google-sheets/test"),
     onSuccess: (result: any) => {
       setDebugInfo(result);
       if (result.success) {
@@ -75,11 +100,11 @@ export default function SourcingInbox() {
       }
     },
     onError: (error: Error) => {
-      setDebugInfo({ 
-        success: false, 
+      setDebugInfo({
+        success: false,
         error: error.message,
         fullError: error,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
       setIsDebugOpen(true);
       toast({
@@ -92,10 +117,11 @@ export default function SourcingInbox() {
 
   // Google Sheets import mutation
   const importSheetsMutation = useMutation({
-    mutationFn: () => apiRequest('/api/integrations/google-sheets/import', 'POST'),
+    mutationFn: () =>
+      apiRequest("/api/integrations/google-sheets/import", "POST"),
     onSuccess: (result: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
-      
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing"] });
+
       if (result.errors && result.errors.length > 0) {
         toast({
           title: "Import with warnings",
@@ -119,14 +145,14 @@ export default function SourcingInbox() {
   });
 
   const formatCellValue = (value: string) => {
-    if (!value || value === '') return '-';
-    
+    if (!value || value === "") return "-";
+
     // Check if it's a URL
-    if (value.startsWith('http://') || value.startsWith('https://')) {
+    if (value.startsWith("http://") || value.startsWith("https://")) {
       return (
-        <a 
-          href={value} 
-          target="_blank" 
+        <a
+          href={value}
+          target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
         >
@@ -135,13 +161,13 @@ export default function SourcingInbox() {
         </a>
       );
     }
-    
+
     // Check if it's a number (for better formatting)
     const num = parseFloat(value);
-    if (!isNaN(num) && value.includes('.')) {
+    if (!isNaN(num) && value.includes(".")) {
       return num.toFixed(2);
     }
-    
+
     return value;
   };
 
@@ -154,8 +180,12 @@ export default function SourcingInbox() {
             <div className="flex items-center justify-between h-20 px-6">
               <div className="flex items-center space-x-4">
                 <div>
-                  <h1 className="text-2xl font-bold gradient-text">Sourcing Inbox</h1>
-                  <p className="text-xs text-muted-foreground mt-1">Loading...</p>
+                  <h1 className="text-2xl font-bold gradient-text">
+                    Sourcing Inbox
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Loading...
+                  </p>
                 </div>
               </div>
             </div>
@@ -182,7 +212,7 @@ export default function SourcingInbox() {
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
       <Sidebar />
-      
+
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
         <header className="glass border-b border-black/10 backdrop-blur-xl">
@@ -192,19 +222,25 @@ export default function SourcingInbox() {
                 <i className="fas fa-bars"></i>
               </button>
               <div>
-                <h1 className="text-2xl font-bold gradient-text">Sourcing Inbox</h1>
-                <p className="text-xs text-muted-foreground mt-1">Import deals from Google Sheets</p>
+                <h1 className="text-2xl font-bold gradient-text">
+                  Sourcing Inbox
+                </h1>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Import deals from Google Sheets
+                </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-xl backdrop-blur-sm">
                 <div className="w-3 h-3 bg-blue-400 rounded-full animate-glow"></div>
-                <span className="text-sm font-medium text-blue-600">{sourcingItems.length} items</span>
+                <span className="text-sm font-medium text-blue-600">
+                  {sourcingItems.length} items
+                </span>
               </div>
-              <button 
+              <button
                 className="p-3 text-muted-foreground hover:bg-black/5 rounded-xl transition-all duration-200"
-                onClick={() => window.location.href = '/api/logout'}
+                onClick={() => (window.location.href = "/api/logout")}
                 data-testid="button-logout"
               >
                 <i className="fas fa-sign-out-alt text-lg"></i>
@@ -219,7 +255,9 @@ export default function SourcingInbox() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-lg text-muted-foreground mb-2">Google Sheets Integration</h2>
+                  <h2 className="text-lg text-muted-foreground mb-2">
+                    Google Sheets Integration
+                  </h2>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -260,7 +298,7 @@ export default function SourcingInbox() {
                   )}
                 </div>
               </div>
-              
+
               {/* Google Sheets Data Table */}
               <Card className="card-hover">
                 <CardHeader>
@@ -269,7 +307,11 @@ export default function SourcingInbox() {
                     Google Sheets Sourcing Data
                   </CardTitle>
                   <CardDescription>
-                    All data displayed directly from Google Sheets "{sheetsData?.lastUpdated ? `Last updated: ${new Date(sheetsData.lastUpdated).toLocaleString()}` : ''}"
+                    All data displayed directly from Google Sheets "
+                    {sheetsData?.lastUpdated
+                      ? `Last updated: ${new Date(sheetsData.lastUpdated).toLocaleString()}`
+                      : ""}
+                    "
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -277,42 +319,56 @@ export default function SourcingInbox() {
                     <div className="text-center py-8 text-muted-foreground">
                       <Download className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p>No data found in Google Sheets</p>
-                      <p className="text-sm">Make sure the "Sourcing" tab contains data in columns A1-U1</p>
+                      <p className="text-sm">
+                        Make sure the "Sourcing" tab contains data in columns
+                        A1-U1
+                      </p>
                     </div>
                   ) : (
                     <div className="w-full">
-                      <div className="rounded-md border">
-                        <ScrollArea className="w-full">
-                          <div className="min-w-full overflow-x-auto">
-                            <Table className="min-w-max">
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="font-semibold sticky left-0 bg-background border-r min-w-[60px]">#</TableHead>
-                                  {headers.map((header: string, index: number) => (
-                                    <TableHead key={index} className="font-semibold min-w-[150px] whitespace-nowrap">
-                                      {header || `Column ${String.fromCharCode(65 + index)}`}
-                                    </TableHead>
-                                  ))}
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {filteredItems.map((item: Record<string, string>, rowIndex: number) => (
-                                  <TableRow key={rowIndex} data-testid={`row-sourcing-${rowIndex}`}>
-                                    <TableCell className="font-medium sticky left-0 bg-background border-r">{rowIndex + 1}</TableCell>
-                                    {headers.map((header: string, colIndex: number) => (
-                                      <TableCell key={colIndex} className="min-w-[150px] whitespace-nowrap">
-                                        {formatCellValue(item[header] || '')}
-                                      </TableCell>
-                                    ))}
-                                  </TableRow>
+                      <div className="overflow-x-auto rounded-md border" style={{ maxWidth: '100%' }}>
+                        <Table className="w-max min-w-full">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="font-semibold sticky left-0 bg-background border-r min-w-[60px] z-10">
+                                #
+                              </TableHead>
+                              {headers.map((header: string, index: number) => (
+                                <TableHead
+                                  key={index}
+                                  className="font-semibold min-w-[150px] whitespace-nowrap px-4"
+                                >
+                                  {header || `Column ${String.fromCharCode(65 + index)}`}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredItems.map((item: Record<string, string>, rowIndex: number) => (
+                              <TableRow
+                                key={rowIndex}
+                                data-testid={`row-sourcing-${rowIndex}`}
+                              >
+                                <TableCell className="font-medium sticky left-0 bg-background border-r z-10">
+                                  {rowIndex + 1}
+                                </TableCell>
+                                {headers.map((header: string, colIndex: number) => (
+                                  <TableCell
+                                    key={colIndex}
+                                    className="min-w-[150px] whitespace-nowrap px-4"
+                                  >
+                                    {formatCellValue(item[header] || "")}
+                                  </TableCell>
                                 ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </ScrollArea>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                       <div className="mt-4 text-sm text-muted-foreground">
-                        Showing {filteredItems.length} of {sourcingItems.length} rows with {headers.length} columns (A1-U1) • Empty rows hidden
+                        Showing {filteredItems.length} of {sourcingItems.length}{" "}
+                        rows with {headers.length} columns (A1-U1) • Empty rows
+                        hidden
                       </div>
                     </div>
                   )}
@@ -334,7 +390,7 @@ export default function SourcingInbox() {
                 Detailed information about the connection and errors
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               {debugInfo && (
                 <div className="bg-muted p-4 rounded-lg">
