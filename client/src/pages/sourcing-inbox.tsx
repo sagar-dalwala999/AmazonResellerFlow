@@ -94,13 +94,7 @@ export default function SourcingInbox() {
   // Mark as winner mutation - updates Google Sheets directly
   const markAsWinnerMutation = useMutation({
     mutationFn: async ({ rowIndex, productReview }: { rowIndex: number, productReview: string }) => {
-      return apiRequest(`/api/sourcing/sheets/${rowIndex}/product-review`, {
-        method: 'PATCH',
-        body: JSON.stringify({ productReview }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      return apiRequest(`/api/sourcing/sheets/${rowIndex}/product-review`, 'PATCH', { productReview });
     },
     onSuccess: (data, variables) => {
       toast({
