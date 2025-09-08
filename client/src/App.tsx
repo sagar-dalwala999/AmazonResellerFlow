@@ -35,6 +35,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/sourcing" component={SourcingInbox} />
+          <Route path="/sourcing-inbox" component={SourcingInbox} />
           <Route path="/purchasing" component={PurchasingPlanner} />
           <Route path="/listings" component={ListingBuilder} />
           <Route path="/performance" component={VAPerformance} />

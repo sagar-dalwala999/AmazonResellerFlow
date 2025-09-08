@@ -122,8 +122,8 @@ export default function SourcingInbox() {
     },
     onSuccess: (data, variables) => {
       toast({
-        title: "Success!",
-        description: `Product marked as "Winner" in Google Sheets (Row ${variables.rowIndex + 1})`,
+        title: "Winner Marked & Moved!",
+        description: `Product marked as Winner and automatically moved to Purchasing tab (Row ${variables.rowIndex + 1})`,
         variant: "default",
       });
       // Invalidate and refetch the sheets data to show the update
