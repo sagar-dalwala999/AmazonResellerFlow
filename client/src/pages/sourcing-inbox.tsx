@@ -26,6 +26,15 @@ export default function SourcingInbox() {
   const sourcingItems = sheetsData?.items || [];
   const headers = sheetsData?.headers || [];
 
+  // Filter out rows where all fields are blank
+  const filteredItems = sourcingItems.filter((item: Record<string, string>) => {
+    // Check if at least one field has content
+    return headers.some((header: string) => {
+      const value = item[header];
+      return value && value.trim() !== '';
+    });
+  });
+
   // Refresh sheets data mutation
   const refreshSheetsMutation = useMutation({
     mutationFn: () => apiRequest('/api/sourcing/sheets'),
@@ -264,7 +273,7 @@ export default function SourcingInbox() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {sourcingItems.length === 0 ? (
+                  {filteredItems.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Download className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p>No data found in Google Sheets</p>
@@ -272,34 +281,38 @@ export default function SourcingInbox() {
                     </div>
                   ) : (
                     <div className="w-full">
-                      <ScrollArea className="w-full whitespace-nowrap rounded-md border">
-                        <Table className="w-full min-w-max">
-                          <TableHeader>
-                            <TableRow>
-                              <TableCell className="font-semibold">#</TableCell>
-                              {headers.map((header: string, index: number) => (
-                                <TableHead key={index} className="font-semibold min-w-[120px]">
-                                  {header || `Column ${String.fromCharCode(65 + index)}`}
-                                </TableHead>
-                              ))}
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {sourcingItems.map((item: Record<string, string>, rowIndex: number) => (
-                              <TableRow key={rowIndex} data-testid={`row-sourcing-${rowIndex}`}>
-                                <TableCell className="font-medium">{rowIndex + 1}</TableCell>
-                                {headers.map((header: string, colIndex: number) => (
-                                  <TableCell key={colIndex} className="min-w-[120px]">
-                                    {formatCellValue(item[header] || '')}
-                                  </TableCell>
+                      <div className="rounded-md border">
+                        <ScrollArea className="w-full">
+                          <div className="min-w-full overflow-x-auto">
+                            <Table className="min-w-max">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="font-semibold sticky left-0 bg-background border-r min-w-[60px]">#</TableHead>
+                                  {headers.map((header: string, index: number) => (
+                                    <TableHead key={index} className="font-semibold min-w-[150px] whitespace-nowrap">
+                                      {header || `Column ${String.fromCharCode(65 + index)}`}
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filteredItems.map((item: Record<string, string>, rowIndex: number) => (
+                                  <TableRow key={rowIndex} data-testid={`row-sourcing-${rowIndex}`}>
+                                    <TableCell className="font-medium sticky left-0 bg-background border-r">{rowIndex + 1}</TableCell>
+                                    {headers.map((header: string, colIndex: number) => (
+                                      <TableCell key={colIndex} className="min-w-[150px] whitespace-nowrap">
+                                        {formatCellValue(item[header] || '')}
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
                                 ))}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </ScrollArea>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </ScrollArea>
+                      </div>
                       <div className="mt-4 text-sm text-muted-foreground">
-                        Showing {sourcingItems.length} rows with {headers.length} columns (A1-U1)
+                        Showing {filteredItems.length} of {sourcingItems.length} rows with {headers.length} columns (A1-U1) • Empty rows hidden
                       </div>
                     </div>
                   )}
