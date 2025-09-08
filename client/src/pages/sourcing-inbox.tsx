@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -39,13 +39,19 @@ import Sidebar from "@/components/sidebar";
 export default function SourcingInbox() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
 
   // Fetch sourcing items directly from Google Sheets
-  const { data: sheetsData, isLoading } = useQuery({
+  const { data: sheetsData, isLoading, refetch } = useQuery({
     queryKey: ["/api/sourcing/sheets"],
     queryFn: () => apiRequest("/api/sourcing/sheets"),
+    staleTime: 0, // Always consider data stale
+    cacheTime: 0, // Don't cache the data
+    refetchOnWindowFocus: true, // Refetch when window gains focus
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchIntervalInBackground: true, // Keep refreshing even when window is not focused
   });
 
   const sourcingItems = sheetsData?.items || [];
@@ -62,14 +68,16 @@ export default function SourcingInbox() {
 
   // Refresh sheets data mutation
   const refreshSheetsMutation = useMutation({
-    mutationFn: () => apiRequest("/api/sourcing/sheets"),
+    mutationFn: async () => {
+      // Invalidate and refetch the data immediately
+      await queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+      return refetch();
+    },
     onSuccess: () => {
       toast({
         title: "Success",
-        description: "Refreshed data from Google Sheets",
+        description: "Data refreshed from Google Sheets",
       });
-      // The query will automatically refetch due to the mutation
-      window.location.reload();
     },
     onError: (error: Error) => {
       toast({
@@ -114,7 +122,7 @@ export default function SourcingInbox() {
       });
     },
   });
-
+  console.log(filteredItems);
   // Google Sheets import mutation
   const importSheetsMutation = useMutation({
     mutationFn: () =>
@@ -148,15 +156,15 @@ export default function SourcingInbox() {
     if (!value || value === "") return "-";
 
     // Check if it's a date in DD.MM.YYYY format (for Datum column)
-    if (headerName === 'Datum' && /^\d{2}\.\d{2}\.\d{4}$/.test(value)) {
-      const [day, month, year] = value.split('.');
+    if (headerName === "Datum" && /^\d{2}\.\d{2}\.\d{4}$/.test(value)) {
+      const [day, month, year] = value.split(".");
       const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      
+
       // Format as readable date
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
       });
     }
 
@@ -177,7 +185,12 @@ export default function SourcingInbox() {
 
     // Check if it's a number (for better formatting)
     const num = parseFloat(value);
-    if (!isNaN(num) && value.includes(".") && !value.includes('/') && !value.includes('http')) {
+    if (
+      !isNaN(num) &&
+      value.includes(".") &&
+      !value.includes("/") &&
+      !value.includes("http")
+    ) {
       return num.toFixed(2);
     }
 
@@ -289,15 +302,15 @@ export default function SourcingInbox() {
                   <Button
                     className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-0 text-white"
                     onClick={() => refreshSheetsMutation.mutate()}
-                    disabled={refreshSheetsMutation.isPending}
+                    disabled={refreshSheetsMutation.isPending || isLoading}
                     data-testid="button-refresh-sheets"
                   >
-                    {refreshSheetsMutation.isPending ? (
+                    {refreshSheetsMutation.isPending || isLoading ? (
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    Refresh Data
+                    Sync Now
                   </Button>
                   {debugInfo && (
                     <Button
@@ -320,11 +333,18 @@ export default function SourcingInbox() {
                     Google Sheets Sourcing Data
                   </CardTitle>
                   <CardDescription>
-                    All data displayed directly from Google Sheets "
-                    {sheetsData?.lastUpdated
-                      ? `Last updated: ${new Date(sheetsData.lastUpdated).toLocaleString()}`
-                      : ""}
-                    "
+                    <div className="flex items-center gap-2">
+                      <span>Live data from Google Sheets</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        Auto-sync every 10s
+                      </span>
+                      {sheetsData?.lastUpdated && (
+                        <span className="text-xs text-muted-foreground">
+                          Last updated: {new Date(sheetsData.lastUpdated).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -379,7 +399,10 @@ export default function SourcingInbox() {
                                         key={colIndex}
                                         className="min-w-[150px] whitespace-nowrap px-4"
                                       >
-                                        {formatCellValue(item[header] || "", header)}
+                                        {formatCellValue(
+                                          item[header] || "",
+                                          header,
+                                        )}
                                       </TableCell>
                                     ),
                                   )}
@@ -390,7 +413,8 @@ export default function SourcingInbox() {
                         </Table>
                       </div>
                       <div className="mt-4 text-sm text-muted-foreground">
-                        Showing {filteredItems.length} rows with {headers.length} columns (A1-U1)
+                        Showing {filteredItems.length} rows with{" "}
+                        {headers.length} columns (A1-U1)
                       </div>
                     </div>
                   )}

@@ -1,32 +1,32 @@
-import { google } from 'googleapis';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { google } from "googleapis";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 interface GoogleSheetsRow {
-  datum?: string;                    // A: Datum
-  imageUrl?: string;                 // B: Image URL
-  image?: string;                    // C: Image
-  brand?: string;                    // D: Brand
-  productName: string;               // E: Product Name
-  asin: string;                      // F: ASIN
-  eanBarcode?: string;               // G: EAN Barcode
-  sourceUrl?: string;                // H: Source URL
-  amazonUrl?: string;                // I: Amazon URL
-  costPrice: string;                 // J: Cost Price
-  salePrice?: string;                // K: Sale Price
-  buyBoxAverage90Days?: string;      // L: Buy Box (Average Last 90 Days)
-  profit?: string;                   // M: Profit
-  profitMargin?: string;             // N: Profit Margin
-  roi?: string;                      // O: R.O.I.
-  estimatedSales?: string;           // P: Estimated Sales
-  fbaSellerCount?: string;           // Q: FBA Seller Count
-  fbmSellerCount?: string;           // R: FBM Seller Count
-  productReview?: string;            // S: Product Review
-  notes?: string;                    // T: Notes
-  sourcingMethod?: string;           // U: Sourcing Method
+  datum?: string; // A: Datum
+  imageUrl?: string; // B: Image URL
+  image?: string; // C: Image
+  brand?: string; // D: Brand
+  productName: string; // E: Product Name
+  asin: string; // F: ASIN
+  eanBarcode?: string; // G: EAN Barcode
+  sourceUrl?: string; // H: Source URL
+  amazonUrl?: string; // I: Amazon URL
+  costPrice: string; // J: Cost Price
+  salePrice?: string; // K: Sale Price
+  buyBoxAverage90Days?: string; // L: Buy Box (Average Last 90 Days)
+  profit?: string; // M: Profit
+  profitMargin?: string; // N: Profit Margin
+  roi?: string; // O: R.O.I.
+  estimatedSales?: string; // P: Estimated Sales
+  fbaSellerCount?: string; // Q: FBA Seller Count
+  fbmSellerCount?: string; // R: FBM Seller Count
+  productReview?: string; // S: Product Review
+  notes?: string; // T: Notes
+  sourcingMethod?: string; // U: Sourcing Method
 }
 
 export class GoogleSheetsService {
@@ -36,18 +36,23 @@ export class GoogleSheetsService {
   constructor() {
     // Use the new spreadsheet ID directly
     this.spreadsheetId = "1S06m7tQuejVvVpStS-gNKZMzrvdEsRCPuipxv1vEiTM";
-    console.log(`🔧 GoogleSheetsService initialized with ID: ${this.spreadsheetId}`);
+    console.log(
+      `🔧 GoogleSheetsService initialized with ID: ${this.spreadsheetId}`,
+    );
     this.sheets = null; // Initialize later
   }
 
   private async getGoogleAuth() {
-    const raw = process.env.GOOGLE_CREDENTIALS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const raw =
+      process.env.GOOGLE_CREDENTIALS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!raw) {
-      throw new Error("GOOGLE_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required");
+      throw new Error(
+        "GOOGLE_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required",
+      );
     }
 
     const creds = JSON.parse(raw);
-    
+
     // WICHTIG: Newlines im Private Key korrekt einsetzen
     if (creds.private_key && creds.private_key.includes("\\n")) {
       creds.private_key = creds.private_key.replace(/\\n/g, "\n");
@@ -70,11 +75,14 @@ export class GoogleSheetsService {
     return this.sheets;
   }
 
-
-  async testConnection(): Promise<{ success: boolean; spreadsheet?: any; error?: string }> {
+  async testConnection(): Promise<{
+    success: boolean;
+    spreadsheet?: any;
+    error?: string;
+  }> {
     try {
       const sheets = await this.getSheets();
-      
+
       // First test - get spreadsheet metadata
       const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
@@ -83,14 +91,18 @@ export class GoogleSheetsService {
       const spreadsheet = metadataResponse.data;
 
       // Get all sheet names to find the correct one
-      const sheetNames = spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
+      const sheetNames =
+        spreadsheet.sheets?.map((s: any) => s.properties?.title) || [];
       console.log(`📋 Available sheet names: ${sheetNames.join(", ")}`);
-      
+
       // Try to find the correct sheet name - could be "Sourcing Sheet" or first sheet
-      let sheetName = sheetNames.find((name: string) => 
-        name.toLowerCase().includes('sourcing')
-      ) || sheetNames[0] || 'Sheet1';
-      
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
       console.log(`🎯 Using sheet: "${sheetName}"`);
 
       // Second test - try to read headers and data from correct sheet
@@ -98,7 +110,7 @@ export class GoogleSheetsService {
         spreadsheetId: this.spreadsheetId,
         range: `'${sheetName}'!A1:U1`, // Headers (21 columns A-U)
       });
-      
+
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
         range: `'${sheetName}'!A2:U10`, // Data rows 2-10 (21 columns A-U)
@@ -108,24 +120,31 @@ export class GoogleSheetsService {
         success: true,
         spreadsheet: {
           title: spreadsheet.properties?.title,
-          sheets: spreadsheet.sheets?.map((s: any) => s.properties?.title) || [],
+          sheets:
+            spreadsheet.sheets?.map((s: any) => s.properties?.title) || [],
           rowCount: dataResponse.data.values?.length || 0,
-          hasData: dataResponse.data.values && dataResponse.data.values.length > 0,
+          hasData:
+            dataResponse.data.values && dataResponse.data.values.length > 0,
           headers: headerResponse.data.values?.[0] || [],
           firstRow: dataResponse.data.values?.[0] || [],
-          sourcingTabFound: spreadsheet.sheets?.some((s: any) => s.properties?.title === 'Sourcing') || false
-        }
+          sourcingTabFound:
+            spreadsheet.sheets?.some(
+              (s: any) => s.properties?.title === "Sourcing",
+            ) || false,
+        },
       };
     } catch (error: any) {
       console.error("Google Sheets connection test failed:", error);
       return {
         success: false,
-        error: error.message || 'Unknown connection error'
+        error: error.message || "Unknown connection error",
       };
     }
   }
 
-  async fetchSheetData(range: string = "Sourcing!A2:AB"): Promise<GoogleSheetsRow[]> {
+  async fetchSheetData(
+    range: string = "Sourcing!A2:AB",
+  ): Promise<GoogleSheetsRow[]> {
     try {
       const sheets = await this.getSheets();
       const response = await sheets.spreadsheets.values.get({
@@ -134,7 +153,7 @@ export class GoogleSheetsService {
       });
 
       const data = response.data;
-      
+
       if (!data.values || data.values.length === 0) {
         return [];
       }
@@ -142,7 +161,7 @@ export class GoogleSheetsService {
       // First row is headers, skip it
       const headers = data.values[0];
       const rows = data.values.slice(1);
-
+      console.log("rows---------------", rows);
       return rows.map((row: string[]) => this.mapRowToObject(headers, row));
     } catch (error) {
       console.error("Error fetching Google Sheets data:", error);
@@ -153,34 +172,34 @@ export class GoogleSheetsService {
   private mapRowToObject(headers: string[], row: string[]): GoogleSheetsRow {
     // Column mapping for new 21-field CSV structure (A-U)
     const columnMapping: Record<number, keyof GoogleSheetsRow> = {
-      0: 'datum',                    // A: Datum
-      1: 'imageUrl',                 // B: Image URL
-      2: 'image',                    // C: Image
-      3: 'brand',                    // D: Brand
-      4: 'productName',              // E: Product Name
-      5: 'asin',                     // F: ASIN
-      6: 'eanBarcode',               // G: EAN Barcode
-      7: 'sourceUrl',                // H: Source URL
-      8: 'amazonUrl',                // I: Amazon URL
-      9: 'costPrice',                // J: Cost Price
-      10: 'salePrice',               // K: Sale Price
-      11: 'buyBoxAverage90Days',     // L: Buy Box (Average Last 90 Days)
-      12: 'profit',                  // M: Profit
-      13: 'profitMargin',            // N: Profit Margin
-      14: 'roi',                     // O: R.O.I.
-      15: 'estimatedSales',          // P: Estimated Sales
-      16: 'fbaSellerCount',          // Q: FBA Seller Count
-      17: 'fbmSellerCount',          // R: FBM Seller Count
-      18: 'productReview',           // S: Product Review
-      19: 'notes',                   // T: Notes
-      20: 'sourcingMethod',          // U: Sourcing Method
+      0: "datum", // A: Datum
+      1: "imageUrl", // B: Image URL
+      2: "image", // C: Image
+      3: "brand", // D: Brand
+      4: "productName", // E: Product Name
+      5: "asin", // F: ASIN
+      6: "eanBarcode", // G: EAN Barcode
+      7: "sourceUrl", // H: Source URL
+      8: "amazonUrl", // I: Amazon URL
+      9: "costPrice", // J: Cost Price
+      10: "salePrice", // K: Sale Price
+      11: "buyBoxAverage90Days", // L: Buy Box (Average Last 90 Days)
+      12: "profit", // M: Profit
+      13: "profitMargin", // N: Profit Margin
+      14: "roi", // O: R.O.I.
+      15: "estimatedSales", // P: Estimated Sales
+      16: "fbaSellerCount", // Q: FBA Seller Count
+      17: "fbmSellerCount", // R: FBM Seller Count
+      18: "productReview", // S: Product Review
+      19: "notes", // T: Notes
+      20: "sourcingMethod", // U: Sourcing Method
     };
 
     const result: any = {};
 
     for (let i = 0; i < row.length && i < 21; i++) {
       const fieldName = columnMapping[i];
-      if (fieldName && row[i] && row[i].trim() !== '') {
+      if (fieldName && row[i] && row[i].trim() !== "") {
         result[fieldName] = row[i].trim();
       }
     }
@@ -203,13 +222,13 @@ export class GoogleSheetsService {
     const errors: string[] = [];
 
     // Validate required fields
-    if (!row.productName || row.productName.trim() === '') {
+    if (!row.productName || row.productName.trim() === "") {
       errors.push("Product Name ist erforderlich");
     }
-    if (!row.asin || row.asin.trim() === '') {
+    if (!row.asin || row.asin.trim() === "") {
       errors.push("ASIN ist erforderlich");
     }
-    if (!row.costPrice || row.costPrice.trim() === '') {
+    if (!row.costPrice || row.costPrice.trim() === "") {
       errors.push("Cost Price ist erforderlich");
     }
     // Validate numeric fields
@@ -260,15 +279,18 @@ export class GoogleSheetsService {
 
   transformRowForDatabase(row: GoogleSheetsRow, submittedBy: string) {
     const costPrice = parseFloat(row.costPrice);
-    
+
     // Direkt aus Spreadsheet übernehmen - KEINE Berechnung
     const profit = row.profit ? parseFloat(row.profit) : null;
-    const profitMargin = row.profitMargin ? parseFloat(row.profitMargin) : null; 
+    const profitMargin = row.profitMargin ? parseFloat(row.profitMargin) : null;
     const roi = row.roi ? parseFloat(row.roi) : null;
-    
+
     // Sale Price direkt aus Spreadsheet verwenden
-    const salePrice = row.salePrice ? parseFloat(row.salePrice) : 
-                      (row.buyBoxAverage90Days ? parseFloat(row.buyBoxAverage90Days) : costPrice);
+    const salePrice = row.salePrice
+      ? parseFloat(row.salePrice)
+      : row.buyBoxAverage90Days
+        ? parseFloat(row.buyBoxAverage90Days)
+        : costPrice;
 
     return {
       datum: row.datum ? new Date(row.datum) : new Date(),
@@ -283,7 +305,9 @@ export class GoogleSheetsService {
       costPrice: costPrice.toString(),
       salePrice: salePrice.toString(),
       buyBoxCurrent: null, // Not in new CSV structure
-      buyBoxAverage90Days: row.buyBoxAverage90Days ? parseFloat(row.buyBoxAverage90Days).toString() : null,
+      buyBoxAverage90Days: row.buyBoxAverage90Days
+        ? parseFloat(row.buyBoxAverage90Days).toString()
+        : null,
       profit: profit !== null ? profit.toString() : null,
       profitMargin: profitMargin !== null ? profitMargin.toString() : null,
       roi: roi !== null ? roi.toString() : null,
@@ -292,7 +316,7 @@ export class GoogleSheetsService {
       fbmSellerCount: row.fbmSellerCount ? parseInt(row.fbmSellerCount) : null,
       productReview: row.productReview ? parseFloat(row.productReview) : null,
       notes: row.notes || null,
-      sourcingMethod: row.sourcingMethod || 'google-sheets',
+      sourcingMethod: row.sourcingMethod || "google-sheets",
       submittedBy,
     };
   }
@@ -301,10 +325,10 @@ export class GoogleSheetsService {
     if (!value) return 0;
     // Remove currency symbols, spaces, and convert German decimal separators
     const cleanValue = String(value)
-      .replace(/[€$£¥₹]/g, '')
-      .replace(/\s/g, '')
-      .replace(/,/g, '.');
-    
+      .replace(/[€$£¥₹]/g, "")
+      .replace(/\s/g, "")
+      .replace(/,/g, ".");
+
     return parseFloat(cleanValue) || 0;
   }
 
@@ -312,31 +336,39 @@ export class GoogleSheetsService {
     if (!value) return null;
     // Remove % symbol and spaces, convert German decimal separators
     const cleanValue = String(value)
-      .replace(/%/g, '')
-      .replace(/\s/g, '')
-      .replace(/,/g, '.');
-    
+      .replace(/%/g, "")
+      .replace(/\s/g, "")
+      .replace(/,/g, ".");
+
     const parsed = parseFloat(cleanValue);
     return isNaN(parsed) ? null : parsed;
   }
 
-  async readSourcingSheet(): Promise<{ headers: string[], items: Record<string, string>[] }> {
+  async readSourcingSheet(): Promise<{
+    headers: string[];
+    items: Record<string, string>[];
+  }> {
     try {
       const sheets = await this.getSheets();
-      
+
       // Get sheet metadata to find correct sheet name
       const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
       });
-      
-      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
       console.log(`📋 Available sheets: ${sheetNames.join(", ")}`);
-      
+
       // Find the correct sheet name
-      let sheetName = sheetNames.find((name: string) => 
-        name.toLowerCase().includes('sourcing')
-      ) || sheetNames[0] || 'Sheet1';
-      
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
       console.log(`🎯 Reading from sheet: "${sheetName}"`);
 
       // Get headers (21 columns: A-U)
@@ -344,7 +376,7 @@ export class GoogleSheetsService {
         spreadsheetId: this.spreadsheetId,
         range: `'${sheetName}'!A1:U1`,
       });
-      
+
       // Get data (21 columns: A-U)
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
@@ -358,11 +390,11 @@ export class GoogleSheetsService {
       const items = rows.map((row: string[]) => {
         const item: Record<string, string> = {};
         headers.forEach((header: string, index: number) => {
-          item[header] = row[index] || '';
+          item[header] = row[index] || "";
         });
         return item;
       });
-
+      console.log("rows", items);
       return { headers, items };
     } catch (error) {
       console.error("Error reading sourcing sheet:", error);
@@ -382,18 +414,18 @@ export function parsePercentMaybe(value: string): number | null {
 
 export function parseNumericValue(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
-  
+
   const str = String(value).trim();
   if (!str) return null;
-  
+
   // Handle special cases like "> 29", "< 5", etc.
   const numericStr = str.replace(/[^\d,-]/g, "");
   if (!numericStr) return null;
-  
+
   // Handle German decimal comma
-  const normalized = numericStr.replace(',', '.');
+  const normalized = numericStr.replace(",", ".");
   const parsed = parseFloat(normalized);
-  
+
   return isNaN(parsed) ? null : parsed;
 }
 
