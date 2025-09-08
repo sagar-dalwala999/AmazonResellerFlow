@@ -390,9 +390,7 @@ export default function SourcingInbox() {
                         </Table>
                       </div>
                       <div className="mt-4 text-sm text-muted-foreground">
-                        Showing {filteredItems.length} of {sourcingItems.length}{" "}
-                        rows with {headers.length} columns (A1-U1) • Empty rows
-                        hidden
+                        Showing {filteredItems.length} rows with {headers.length} columns (A1-U1)
                       </div>
                     </div>
                   )}
