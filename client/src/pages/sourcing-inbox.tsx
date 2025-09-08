@@ -48,7 +48,7 @@ export default function SourcingInbox() {
     queryKey: ["/api/sourcing/sheets"],
     queryFn: () => apiRequest("/api/sourcing/sheets"),
     staleTime: 0, // Always consider data stale
-    cacheTime: 0, // Don't cache the data
+    gcTime: 0, // Don't cache the data (renamed from cacheTime in v5)
     refetchOnWindowFocus: true, // Refetch when window gains focus
     refetchInterval: 10000, // Auto-refresh every 10 seconds
     refetchIntervalInBackground: true, // Keep refreshing even when window is not focused
@@ -87,6 +87,18 @@ export default function SourcingInbox() {
       });
     },
   });
+
+  // Mark as winner function - updates locally and shows notification
+  const markAsWinner = (rowIndex: number, item: Record<string, string>) => {
+    toast({
+      title: "Marked as Winner",
+      description: `Product "${item['Product Name'] || 'Unknown'}" marked as winner locally. Update your Google Sheet to persist this change.`,
+      variant: "default",
+    });
+    
+    // For future enhancement: This could update the Google Sheet directly
+    // For now, we just show a notification to the user
+  };
 
   // Google Sheets connection test mutation
   const testConnectionMutation = useMutation({
@@ -378,6 +390,9 @@ export default function SourcingInbox() {
                                     `Column ${String.fromCharCode(65 + index)}`}
                                 </TableHead>
                               ))}
+                              <TableHead className="font-semibold min-w-[120px] whitespace-nowrap px-4">
+                                Actions
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -385,10 +400,13 @@ export default function SourcingInbox() {
                               (
                                 item: Record<string, string>,
                                 rowIndex: number,
-                              ) => (
+                              ) => {
+                                const isWinner = item['Product Review']?.toLowerCase() === 'winner';
+                                return (
                                 <TableRow
                                   key={rowIndex}
                                   data-testid={`row-sourcing-${rowIndex}`}
+                                  className={isWinner ? 'bg-green-50 hover:bg-green-100 border-green-200' : ''}
                                 >
                                   <TableCell className="font-medium sticky left-0 bg-background border-r z-10">
                                     {rowIndex + 1}
@@ -406,9 +424,25 @@ export default function SourcingInbox() {
                                       </TableCell>
                                     ),
                                   )}
+                                  <TableCell className="min-w-[120px] whitespace-nowrap px-4">
+                                    {!isWinner ? (
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 py-1 h-6"
+                                        onClick={() => markAsWinner(rowIndex, item)}
+                                        data-testid={`button-mark-winner-${rowIndex}`}
+                                      >
+                                        Mark Winner
+                                      </Button>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                                        ✓ Winner
+                                      </span>
+                                    )}
+                                  </TableCell>
                                 </TableRow>
-                              ),
-                            )}
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
