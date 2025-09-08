@@ -144,8 +144,21 @@ export default function SourcingInbox() {
     },
   });
 
-  const formatCellValue = (value: string) => {
+  const formatCellValue = (value: string, headerName?: string) => {
     if (!value || value === "") return "-";
+
+    // Check if it's a date in DD.MM.YYYY format (for Datum column)
+    if (headerName === 'Datum' && /^\d{2}\.\d{2}\.\d{4}$/.test(value)) {
+      const [day, month, year] = value.split('.');
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      // Format as readable date
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
 
     // Check if it's a URL
     if (value.startsWith("http://") || value.startsWith("https://")) {
@@ -164,7 +177,7 @@ export default function SourcingInbox() {
 
     // Check if it's a number (for better formatting)
     const num = parseFloat(value);
-    if (!isNaN(num) && value.includes(".")) {
+    if (!isNaN(num) && value.includes(".") && !value.includes('/') && !value.includes('http')) {
       return num.toFixed(2);
     }
 
@@ -326,7 +339,10 @@ export default function SourcingInbox() {
                     </div>
                   ) : (
                     <div className="w-full">
-                      <div className="overflow-x-auto rounded-md border" style={{ maxWidth: '100%' }}>
+                      <div
+                        className="overflow-x-auto rounded-md border"
+                        style={{ maxWidth: "100%" }}
+                      >
                         <Table className="w-max min-w-full">
                           <TableHeader>
                             <TableRow>
@@ -338,30 +354,38 @@ export default function SourcingInbox() {
                                   key={index}
                                   className="font-semibold min-w-[150px] whitespace-nowrap px-4"
                                 >
-                                  {header || `Column ${String.fromCharCode(65 + index)}`}
+                                  {header ||
+                                    `Column ${String.fromCharCode(65 + index)}`}
                                 </TableHead>
                               ))}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredItems.map((item: Record<string, string>, rowIndex: number) => (
-                              <TableRow
-                                key={rowIndex}
-                                data-testid={`row-sourcing-${rowIndex}`}
-                              >
-                                <TableCell className="font-medium sticky left-0 bg-background border-r z-10">
-                                  {rowIndex + 1}
-                                </TableCell>
-                                {headers.map((header: string, colIndex: number) => (
-                                  <TableCell
-                                    key={colIndex}
-                                    className="min-w-[150px] whitespace-nowrap px-4"
-                                  >
-                                    {formatCellValue(item[header] || "")}
+                            {filteredItems.map(
+                              (
+                                item: Record<string, string>,
+                                rowIndex: number,
+                              ) => (
+                                <TableRow
+                                  key={rowIndex}
+                                  data-testid={`row-sourcing-${rowIndex}`}
+                                >
+                                  <TableCell className="font-medium sticky left-0 bg-background border-r z-10">
+                                    {rowIndex + 1}
                                   </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
+                                  {headers.map(
+                                    (header: string, colIndex: number) => (
+                                      <TableCell
+                                        key={colIndex}
+                                        className="min-w-[150px] whitespace-nowrap px-4"
+                                      >
+                                        {formatCellValue(item[header] || "", header)}
+                                      </TableCell>
+                                    ),
+                                  )}
+                                </TableRow>
+                              ),
+                            )}
                           </TableBody>
                         </Table>
                       </div>
