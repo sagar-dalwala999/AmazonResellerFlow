@@ -1,87 +1,41 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSourcingSchema } from "@shared/schema";
-import { z } from "zod";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Plus, RefreshCw, CheckCircle, Clock, XCircle, Eye, Bug, AlertTriangle } from "lucide-react";
+import { Download, RefreshCw, Bug, AlertTriangle, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
-
-const sourcingFormSchema = insertSourcingSchema.extend({
-  datum: z.string().optional(),
-  imageUrl: z.string().url().optional().or(z.literal("")),
-  costPrice: z.string().min(1, "Cost price is required"),
-  salePrice: z.string().min(1, "Sale price is required"),
-  buyBoxAverage90Days: z.string().optional(),
-  estimatedSales: z.string().optional(),
-  fbaSellerCount: z.string().optional(),
-  fbmSellerCount: z.string().optional(),
-  productReview: z.string().optional(),
-});
-
-type SourcingFormData = z.infer<typeof sourcingFormSchema>;
 
 export default function SourcingInbox() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
 
-  const userRole = (user as any)?.role || 'va';
-  const isAdmin = userRole === 'admin';
-
-  // Fetch sourcing items
-  const { data: sourcingItems = [], isLoading } = useQuery({
-    queryKey: ['/api/sourcing', filterStatus],
-    queryFn: () => apiRequest(`/api/sourcing?status=${filterStatus === 'all' ? '' : filterStatus}`),
+  // Fetch sourcing items directly from Google Sheets
+  const { data: sheetsData, isLoading } = useQuery({
+    queryKey: ['/api/sourcing/sheets'],
+    queryFn: () => apiRequest('/api/sourcing/sheets'),
   });
 
-  // Add sourcing mutation
-  const addSourcingMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/sourcing', 'POST', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
-      setIsAddDialogOpen(false);
-      toast({
-        title: "Success",
-        description: "Sourcing item added successfully",
-      });
-      form.reset();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const sourcingItems = sheetsData?.items || [];
+  const headers = sheetsData?.headers || [];
 
-  // Update status mutation (admin only)
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status, reviewNotes }: { id: string; status: string; reviewNotes?: string }) =>
-      apiRequest(`/api/sourcing/${id}/status`, 'PATCH', { status, reviewNotes }),
+  // Refresh sheets data mutation
+  const refreshSheetsMutation = useMutation({
+    mutationFn: () => apiRequest('/api/sourcing/sheets'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sourcing'] });
       toast({
         title: "Success",
-        description: "Status updated successfully",
+        description: "Refreshed data from Google Sheets",
       });
+      // The query will automatically refetch due to the mutation
+      window.location.reload();
     },
     onError: (error: Error) => {
       toast({
@@ -155,61 +109,31 @@ export default function SourcingInbox() {
     },
   });
 
-  const form = useForm<SourcingFormData>({
-    resolver: zodResolver(sourcingFormSchema),
-    defaultValues: {
-      productName: "",
-      asin: "",
-      brand: "",
-      costPrice: "",
-      salePrice: "",
-      imageUrl: "",
-      sourceUrl: "",
-      amazonUrl: "",
-      eanBarcode: "",
-      notes: "",
-      sourcingMethod: "",
-    },
-  });
-
-  const onSubmit = (data: SourcingFormData) => {
-    addSourcingMutation.mutate({
-      ...data,
-      costPrice: parseFloat(data.costPrice),
-      salePrice: parseFloat(data.salePrice),
-      buyBoxAverage90Days: data.buyBoxAverage90Days ? parseFloat(data.buyBoxAverage90Days) : null,
-      estimatedSales: data.estimatedSales ? parseInt(data.estimatedSales) : null,
-      fbaSellerCount: data.fbaSellerCount ? parseInt(data.fbaSellerCount) : null,
-      fbmSellerCount: data.fbmSellerCount ? parseInt(data.fbmSellerCount) : null,
-      productReview: data.productReview ? parseFloat(data.productReview) : null,
-      datum: data.datum ? new Date(data.datum) : new Date(),
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      new: { label: "New", variant: "secondary" as const, icon: Clock },
-      under_review: { label: "Under Review", variant: "default" as const, icon: Eye },
-      winner: { label: "Winner", variant: "default" as const, icon: CheckCircle },
-      no_go: { label: "No-Go", variant: "destructive" as const, icon: XCircle },
-    };
+  const formatCellValue = (value: string) => {
+    if (!value || value === '') return '-';
     
-    const config = statusConfig[status as keyof typeof statusConfig];
-    if (!config) return null;
-
-    const Icon = config.icon;
-    return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
-        <Icon className="h-3 w-3" />
-        {config.label}
-      </Badge>
-    );
-  };
-
-  const calculateProfit = (costPrice: number, salePrice: number) => {
-    const profit = salePrice - costPrice;
-    const margin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
-    return { profit, margin };
+    // Check if it's a URL
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return (
+        <a 
+          href={value} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Link
+        </a>
+      );
+    }
+    
+    // Check if it's a number (for better formatting)
+    const num = parseFloat(value);
+    if (!isNaN(num) && value.includes('.')) {
+      return num.toFixed(2);
+    }
+    
+    return value;
   };
 
   if (isLoading) {
@@ -304,16 +228,16 @@ export default function SourcingInbox() {
                   </Button>
                   <Button
                     className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-0 text-white"
-                    onClick={() => importSheetsMutation.mutate()}
-                    disabled={importSheetsMutation.isPending}
-                    data-testid="button-import-sheets"
+                    onClick={() => refreshSheetsMutation.mutate()}
+                    disabled={refreshSheetsMutation.isPending}
+                    data-testid="button-refresh-sheets"
                   >
-                    {importSheetsMutation.isPending ? (
+                    {refreshSheetsMutation.isPending ? (
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
-                      <Download className="h-4 w-4 mr-2" />
+                      <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    Import from Sheets
+                    Refresh Data
                   </Button>
                   {debugInfo && (
                     <Button
@@ -328,233 +252,59 @@ export default function SourcingInbox() {
                 </div>
               </div>
               
-              {/* Filter Controls */}
-              <div className="flex justify-between items-center">
-                <div className="flex gap-4 items-center">
-                  <Label className="text-sm font-medium">Filter by status:</Label>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-48" data-testid="select-filter-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="under_review">Under Review</SelectItem>
-                      <SelectItem value="winner">Winner</SelectItem>
-                      <SelectItem value="no_go">No-Go</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button data-testid="button-add-sourcing">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Sourcing
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Add New Sourcing Item</DialogTitle>
-                      <DialogDescription>
-                        Add a new product for sourcing evaluation
-                      </DialogDescription>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="productName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Product Name *</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="asin"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>ASIN *</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="B01234ABCD" {...field} data-testid="input-asin" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="costPrice"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Cost Price (€) *</FormLabel>
-                                <FormControl>
-                                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-cost-price" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="salePrice"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Sale Price (€) *</FormLabel>
-                                <FormControl>
-                                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-sale-price" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <FormField
-                          control={form.control}
-                          name="notes"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Notes</FormLabel>
-                              <FormControl>
-                                <Textarea placeholder="Additional notes..." {...field} data-testid="textarea-notes" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex justify-end gap-2 pt-4">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsAddDialogOpen(false)}
-                            data-testid="button-cancel"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="submit"
-                            disabled={addSourcingMutation.isPending}
-                            data-testid="button-submit-sourcing"
-                          >
-                            {addSourcingMutation.isPending ? (
-                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            ) : null}
-                            Add Sourcing
-                          </Button>
-                        </div>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              {/* Sourcing Items Grid */}
-              <div className="grid gap-4">
-                {sourcingItems.length === 0 ? (
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <p className="text-muted-foreground">No sourcing items found</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  sourcingItems.map((item: any) => {
-                    const { profit, margin } = calculateProfit(parseFloat(item.costPrice), parseFloat(item.salePrice));
-                    
-                    return (
-                      <Card key={item.id} data-testid={`card-sourcing-${item.id}`} className="card-hover">
-                        <CardHeader>
-                          <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                              <CardTitle className="text-lg">{item.productName}</CardTitle>
-                              <CardDescription className="flex items-center gap-2">
-                                <span>ASIN: {item.asin}</span>
-                                {item.brand && <span>• Brand: {item.brand}</span>}
-                              </CardDescription>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {getStatusBadge(item.status)}
-                              {isAdmin && item.status === 'new' && (
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => updateStatusMutation.mutate({ id: item.id, status: 'under_review' })}
-                                    data-testid={`button-review-${item.id}`}
-                                  >
-                                    Review
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => updateStatusMutation.mutate({ id: item.id, status: 'winner' })}
-                                    data-testid={`button-approve-${item.id}`}
-                                  >
-                                    Winner
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => updateStatusMutation.mutate({ id: item.id, status: 'no_go' })}
-                                    data-testid={`button-reject-${item.id}`}
-                                  >
-                                    No-Go
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <Label className="text-muted-foreground">Cost Price</Label>
-                              <p className="font-medium">€{parseFloat(item.costPrice).toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <Label className="text-muted-foreground">Sale Price</Label>
-                              <p className="font-medium">€{parseFloat(item.salePrice).toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <Label className="text-muted-foreground">Profit</Label>
-                              <p className={`font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                €{profit.toFixed(2)}
-                              </p>
-                            </div>
-                            <div>
-                              <Label className="text-muted-foreground">Margin</Label>
-                              <p className={`font-medium ${margin >= 15 ? 'text-green-600' : 'text-yellow-600'}`}>
-                                {margin.toFixed(1)}%
-                              </p>
-                            </div>
-                          </div>
-
-                          {item.notes && (
-                            <div>
-                              <Label className="text-muted-foreground">Notes</Label>
-                              <p className="text-sm">{item.notes}</p>
-                            </div>
-                          )}
-
-                          {item.submitter && (
-                            <div className="text-xs text-muted-foreground">
-                              Submitted by {item.submitter.firstName} {item.submitter.lastName} • 
-                              {new Date(item.createdAt).toLocaleDateString()}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })
-                )}
-              </div>
+              {/* Google Sheets Data Table */}
+              <Card className="card-hover">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Download className="h-5 w-5" />
+                    Google Sheets Sourcing Data
+                  </CardTitle>
+                  <CardDescription>
+                    All data displayed directly from Google Sheets "{sheetsData?.lastUpdated ? `Last updated: ${new Date(sheetsData.lastUpdated).toLocaleString()}` : ''}"
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {sourcingItems.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Download className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No data found in Google Sheets</p>
+                      <p className="text-sm">Make sure the "Sourcing" tab contains data in columns A1-U1</p>
+                    </div>
+                  ) : (
+                    <div className="w-full">
+                      <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                        <Table className="w-full min-w-max">
+                          <TableHeader>
+                            <TableRow>
+                              <TableCell className="font-semibold">#</TableCell>
+                              {headers.map((header: string, index: number) => (
+                                <TableHead key={index} className="font-semibold min-w-[120px]">
+                                  {header || `Column ${String.fromCharCode(65 + index)}`}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {sourcingItems.map((item: Record<string, string>, rowIndex: number) => (
+                              <TableRow key={rowIndex} data-testid={`row-sourcing-${rowIndex}`}>
+                                <TableCell className="font-medium">{rowIndex + 1}</TableCell>
+                                {headers.map((header: string, colIndex: number) => (
+                                  <TableCell key={colIndex} className="min-w-[120px]">
+                                    {formatCellValue(item[header] || '')}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                      <div className="mt-4 text-sm text-muted-foreground">
+                        Showing {sourcingItems.length} rows with {headers.length} columns (A1-U1)
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>
