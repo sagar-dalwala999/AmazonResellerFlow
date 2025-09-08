@@ -665,8 +665,15 @@ export class GoogleSheetsService {
         return item;
       });
 
-      console.log(`📦 Found ${items.length} items in Purchasing sheet`);
-      return { headers, items };
+      // Filter out rows where Product Name and ASIN are both missing or empty
+      const filteredItems = items.filter(item => {
+        const productName = item['Product Name']?.trim();
+        const asin = item['ASIN']?.trim();
+        return productName && productName !== '' && asin && asin !== '';
+      });
+
+      console.log(`📦 Found ${items.length} total items, ${filteredItems.length} items after filtering out empty Product Name/ASIN`);
+      return { headers, items: filteredItems };
     } catch (error) {
       console.error("Error reading Purchasing sheet:", error);
       throw error;
