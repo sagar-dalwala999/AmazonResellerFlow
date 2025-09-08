@@ -20,7 +20,7 @@ export default function Dashboard() {
     if (!isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
-        description: "Sie sind nicht angemeldet. Weiterleitung zur Anmeldung...",
+        description: "You are not logged in. Redirecting to login...",
         variant: "destructive",
       });
       setTimeout(() => {
@@ -36,15 +36,15 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       toast({
-        title: "Import erfolgreich",
-        description: "Google Sheets Daten wurden erfolgreich importiert.",
+        title: "Import successful",
+        description: "Google Sheets data was successfully imported.",
       });
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
-          description: "Sie sind nicht angemeldet. Weiterleitung zur Anmeldung...",
+          description: "You are not logged in. Redirecting to login...",
           variant: "destructive",
         });
         setTimeout(() => {
@@ -53,8 +53,8 @@ export default function Dashboard() {
         return;
       }
       toast({
-        title: "Import fehlgeschlagen",
-        description: "Google Sheets Import konnte nicht durchgeführt werden.",
+        title: "Import failed",
+        description: "Google Sheets import could not be performed.",
         variant: "destructive",
       });
     },
@@ -91,7 +91,7 @@ export default function Dashboard() {
               {/* Google Sheets Sync Status */}
               <div className="flex items-center space-x-2 px-3 py-1 bg-green-50 border border-green-200 rounded-md">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-green-700">Google Sheets Sync aktiv</span>
+                <span className="text-xs font-medium text-green-700">Google Sheets Sync active</span>
               </div>
               
               <button className="p-2 text-muted-foreground hover:bg-accent rounded-md">
@@ -119,7 +119,7 @@ export default function Dashboard() {
               {/* Quick Actions */}
               <Card>
                 <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-4">Schnellzugriff</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
                   <div className="space-y-3">
                     <Button 
                       className="w-full justify-between" 
@@ -128,7 +128,7 @@ export default function Dashboard() {
                     >
                       <span className="flex items-center">
                         <i className="fas fa-plus mr-3"></i>
-                        Neuen Deal erfassen
+                        Submit New Deal
                       </span>
                       <i className="fas fa-arrow-right"></i>
                     </Button>
@@ -142,7 +142,7 @@ export default function Dashboard() {
                     >
                       <span className="flex items-center">
                         <i className="fas fa-sync mr-3"></i>
-                        {googleSheetsImport.isPending ? 'Importiere...' : 'Google Sheets Import'}
+                        {googleSheetsImport.isPending ? 'Importing...' : 'Google Sheets Import'}
                       </span>
                       <i className="fas fa-arrow-right"></i>
                     </Button>
@@ -156,7 +156,7 @@ export default function Dashboard() {
                       >
                         <span className="flex items-center">
                           <i className="fas fa-check-circle mr-3"></i>
-                          Deal Bewertung
+                          Deal Evaluation
                         </span>
                         <i className="fas fa-arrow-right"></i>
                       </Button>
@@ -177,7 +177,7 @@ export default function Dashboard() {
             {/* API Integration Status */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">API Integrationen</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-4">API Integrations</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
                     <div className="flex items-center space-x-3">
@@ -186,7 +186,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-green-900">Amazon MWS</p>
-                        <p className="text-xs text-green-700">Letzte Sync: vor 5 Min</p>
+                        <p className="text-xs text-green-700">Last Sync: 5 min ago</p>
                       </div>
                     </div>
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -199,7 +199,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-blue-900">PrepMyBusiness</p>
-                        <p className="text-xs text-blue-700">Letzte Sync: vor 12 Min</p>
+                        <p className="text-xs text-blue-700">Last Sync: 12 min ago</p>
                       </div>
                     </div>
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
@@ -212,7 +212,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900">Google Sheets</p>
-                        <p className="text-xs text-gray-700">Live Sync aktiv</p>
+                        <p className="text-xs text-gray-700">Live Sync active</p>
                       </div>
                     </div>
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
