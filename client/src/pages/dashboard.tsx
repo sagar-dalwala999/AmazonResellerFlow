@@ -73,92 +73,120 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-background via-background-secondary to-background">
       <Sidebar />
       
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <header className="bg-card border-b border-border">
-          <div className="flex items-center justify-between h-16 px-6">
+        <header className="glass border-b border-white/10 backdrop-blur-xl">
+          <div className="flex items-center justify-between h-20 px-6">
             <div className="flex items-center space-x-4">
-              <button className="lg:hidden p-2 rounded-md text-muted-foreground hover:bg-accent">
+              <button className="lg:hidden p-3 rounded-xl text-muted-foreground hover:bg-white/10 transition-all duration-200">
                 <i className="fas fa-bars"></i>
               </button>
-              <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+              <div>
+                <h1 className="text-2xl font-bold gradient-text">Dashboard</h1>
+                <p className="text-xs text-muted-foreground mt-1">Welcome back, {user?.firstName}!</p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">
               {/* Google Sheets Sync Status */}
-              <div className="flex items-center space-x-2 px-3 py-1 bg-green-50 border border-green-200 rounded-md">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-green-700">Google Sheets Sync active</span>
+              <div className="flex items-center space-x-3 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-xl backdrop-blur-sm">
+                <div className="w-3 h-3 bg-emerald-400 rounded-full animate-glow"></div>
+                <span className="text-sm font-medium text-emerald-300">Sheets Sync Active</span>
               </div>
               
-              <button className="p-2 text-muted-foreground hover:bg-accent rounded-md">
-                <i className="fas fa-bell"></i>
+              <button className="p-3 text-muted-foreground hover:bg-white/10 rounded-xl transition-all duration-200 relative">
+                <i className="fas fa-bell text-lg"></i>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
               </button>
               <button 
-                className="p-2 text-muted-foreground hover:bg-accent rounded-md"
+                className="p-3 text-muted-foreground hover:bg-white/10 rounded-xl transition-all duration-200"
                 onClick={() => window.location.href = '/api/logout'}
                 data-testid="button-logout"
               >
-                <i className="fas fa-sign-out-alt"></i>
+                <i className="fas fa-sign-out-alt text-lg"></i>
               </button>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-background">
-          <div className="p-6 space-y-6">
+        <main className="flex-1 overflow-auto">
+          <div className="p-8 space-y-8">
+            {/* Welcome Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg text-muted-foreground mb-2">Analytics Overview</h2>
+                  <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-1">
+                      <i className="fas fa-calendar text-primary"></i>
+                      <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <i className="fas fa-clock text-primary"></i>
+                      <span>Last updated: {new Date().toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             {/* KPI Cards */}
-            <KpiCards />
+            <div>
+              <KpiCards />
+            </div>
 
             {/* Quick Actions & Recent Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Quick Actions */}
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
-                  <div className="space-y-3">
+              <Card className="glass border-0 card-hover">
+                <CardContent className="p-8">
+                  <div className="flex items-center mb-6">
+                    <div className="p-3 bg-gradient-to-r from-primary to-purple-600 rounded-xl mr-4">
+                      <i className="fas fa-rocket text-white"></i>
+                    </div>
+                    <h3 className="text-xl font-bold gradient-text">Quick Actions</h3>
+                  </div>
+                  <div className="space-y-4">
                     <Button 
-                      className="w-full justify-between" 
+                      className="w-full justify-between h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0 rounded-xl transition-all duration-300 hover:scale-105" 
                       onClick={() => window.location.href = '/deals/submit'}
                       data-testid="button-new-deal"
                     >
                       <span className="flex items-center">
-                        <i className="fas fa-plus mr-3"></i>
-                        Submit New Deal
+                        <i className="fas fa-plus mr-3 text-lg"></i>
+                        <span className="font-semibold">Submit New Deal</span>
                       </span>
-                      <i className="fas fa-arrow-right"></i>
+                      <i className="fas fa-arrow-right text-lg"></i>
                     </Button>
                     
                     <Button 
-                      variant="secondary" 
-                      className="w-full justify-between"
+                      className="w-full justify-between h-14 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 border-0 rounded-xl transition-all duration-300 hover:scale-105"
                       onClick={() => googleSheetsImport.mutate()}
                       disabled={googleSheetsImport.isPending}
                       data-testid="button-google-sheets-import"
                     >
                       <span className="flex items-center">
-                        <i className="fas fa-sync mr-3"></i>
-                        {googleSheetsImport.isPending ? 'Importing...' : 'Google Sheets Import'}
+                        <i className={`${googleSheetsImport.isPending ? 'fas fa-spinner animate-spin' : 'fas fa-sync'} mr-3 text-lg`}></i>
+                        <span className="font-semibold">{googleSheetsImport.isPending ? 'Importing...' : 'Sync Google Sheets'}</span>
                       </span>
-                      <i className="fas fa-arrow-right"></i>
+                      <i className="fas fa-arrow-right text-lg"></i>
                     </Button>
                     
                     {user?.role === 'admin' && (
                       <Button 
-                        variant="secondary" 
-                        className="w-full justify-between"
+                        className="w-full justify-between h-14 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 border-0 rounded-xl transition-all duration-300 hover:scale-105"
                         onClick={() => window.location.href = '/deals/evaluate'}
                         data-testid="button-deal-evaluation"
                       >
                         <span className="flex items-center">
-                          <i className="fas fa-check-circle mr-3"></i>
-                          Deal Evaluation
+                          <i className="fas fa-check-circle mr-3 text-lg"></i>
+                          <span className="font-semibold">Deal Evaluation</span>
                         </span>
-                        <i className="fas fa-arrow-right"></i>
+                        <i className="fas fa-arrow-right text-lg"></i>
                       </Button>
                     )}
                   </div>
@@ -175,47 +203,61 @@ export default function Dashboard() {
             <PipelineOverview />
 
             {/* API Integration Status */}
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">API Integrations</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <i className="fab fa-amazon text-green-600"></i>
+            <Card className="glass border-0 card-hover">
+              <CardContent className="p-8">
+                <div className="flex items-center mb-6">
+                  <div className="p-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl mr-4">
+                    <i className="fas fa-plug text-white"></i>
+                  </div>
+                  <h3 className="text-xl font-bold gradient-text">API Integrations</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="relative p-6 bg-gradient-to-br from-emerald-500/10 to-green-400/10 border border-emerald-500/20 rounded-2xl backdrop-blur-sm hover:scale-105 transition-all duration-300">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-green-400 rounded-t-2xl"></div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-400 rounded-xl flex items-center justify-center shadow-lg">
+                          <i className="fab fa-amazon text-white text-lg"></i>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-emerald-300">Amazon MWS</p>
+                          <p className="text-xs text-emerald-400/70">Last Sync: 5 min ago</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-green-900">Amazon MWS</p>
-                        <p className="text-xs text-green-700">Last Sync: 5 min ago</p>
-                      </div>
+                      <div className="w-4 h-4 bg-emerald-400 rounded-full animate-glow shadow-lg"></div>
                     </div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <i className="fas fa-box text-blue-600"></i>
+                  <div className="relative p-6 bg-gradient-to-br from-blue-500/10 to-cyan-400/10 border border-blue-500/20 rounded-2xl backdrop-blur-sm hover:scale-105 transition-all duration-300">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-t-2xl"></div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg">
+                          <i className="fas fa-box text-white text-lg"></i>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-blue-300">PrepMyBusiness</p>
+                          <p className="text-xs text-blue-400/70">Last Sync: 12 min ago</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-blue-900">PrepMyBusiness</p>
-                        <p className="text-xs text-blue-700">Last Sync: 12 min ago</p>
-                      </div>
+                      <div className="w-4 h-4 bg-blue-400 rounded-full animate-glow shadow-lg"></div>
                     </div>
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <i className="fab fa-google text-gray-600"></i>
+                  <div className="relative p-6 bg-gradient-to-br from-purple-500/10 to-pink-400/10 border border-purple-500/20 rounded-2xl backdrop-blur-sm hover:scale-105 transition-all duration-300">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-400 rounded-t-2xl"></div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-400 rounded-xl flex items-center justify-center shadow-lg">
+                          <i className="fab fa-google text-white text-lg"></i>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-purple-300">Google Sheets</p>
+                          <p className="text-xs text-purple-400/70">Live Sync active</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Google Sheets</p>
-                        <p className="text-xs text-gray-700">Live Sync active</p>
-                      </div>
+                      <div className="w-4 h-4 bg-purple-400 rounded-full animate-pulse shadow-lg"></div>
                     </div>
-                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                   </div>
                 </div>
               </CardContent>
