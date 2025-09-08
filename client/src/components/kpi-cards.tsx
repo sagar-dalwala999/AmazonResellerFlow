@@ -33,40 +33,40 @@ export default function KpiCards() {
 
   const kpiData = [
     {
-      title: "Aktive Deals",
+      title: "Active Deals",
       value: kpis?.activeDeals || 0,
       icon: "fas fa-handshake",
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
       change: "+12%",
-      changeLabel: "vs. letzter Monat",
+      changeLabel: "vs. last month",
     },
     {
-      title: "Winner Produkte",
+      title: "Winner Products",
       value: kpis?.winnerProducts || 0,
       icon: "fas fa-trophy",
       iconBg: "bg-green-50",
       iconColor: "text-green-600",
       change: "+8%",
-      changeLabel: "Erfolgsrate",
+      changeLabel: "Success rate",
     },
     {
-      title: "Monatlicher Profit",
+      title: "Monthly Profit",
       value: formatCurrency(kpis?.monthlyProfit || 0),
       icon: "fas fa-euro-sign",
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
       change: "+23%",
-      changeLabel: "vs. letzter Monat",
+      changeLabel: "vs. last month",
     },
     {
-      title: "Verfügbares Budget",
+      title: "Available Budget",
       value: formatCurrency(kpis?.availableBudget || 0),
       icon: "fas fa-wallet",
       iconBg: "bg-purple-50",
       iconColor: "text-purple-600",
       change: "82%",
-      changeLabel: "des Gesamtbudgets",
+      changeLabel: "of total budget",
     },
   ];
 

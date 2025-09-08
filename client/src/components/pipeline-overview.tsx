@@ -14,11 +14,11 @@ export default function PipelineOverview() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      submitted: { label: "Eingereicht", variant: "secondary" as const },
-      reviewing: { label: "In Bewertung", variant: "default" as const },
-      approved: { label: "Genehmigt", variant: "default" as const },
+      submitted: { label: "Submitted", variant: "secondary" as const },
+      reviewing: { label: "Under Review", variant: "default" as const },
+      approved: { label: "Approved", variant: "default" as const },
       winner: { label: "Winner", variant: "default" as const },
-      rejected: { label: "Abgelehnt", variant: "destructive" as const },
+      rejected: { label: "Rejected", variant: "destructive" as const },
     };
     
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.submitted;
@@ -57,14 +57,14 @@ export default function PipelineOverview() {
 
   const pipelineData = [
     {
-      title: "Eingereicht",
+      title: "Submitted",
       count: pipeline?.submitted || 0,
       icon: "fas fa-inbox",
       bgColor: "bg-blue-100",
       iconColor: "text-blue-600",
     },
     {
-      title: "In Bewertung",
+      title: "Under Review",
       count: pipeline?.reviewing || 0,
       icon: "fas fa-clock",
       bgColor: "bg-yellow-100",
@@ -78,7 +78,7 @@ export default function PipelineOverview() {
       iconColor: "text-green-600",
     },
     {
-      title: "Genehmigt",
+      title: "Approved",
       count: pipeline?.approved || 0,
       icon: "fas fa-check",
       bgColor: "bg-emerald-100",
@@ -123,7 +123,7 @@ export default function PipelineOverview() {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Produkt
+                  Product
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   VA
@@ -135,10 +135,10 @@ export default function PipelineOverview() {
                   Profit %
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Eingereicht
+                  Submitted
                 </th>
                 <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Aktionen
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -146,7 +146,7 @@ export default function PipelineOverview() {
               {!deals || deals.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                    Keine Deals vorhanden
+                    No deals available
                   </td>
                 </tr>
               ) : (
@@ -159,7 +159,7 @@ export default function PipelineOverview() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">
-                            {deal.product?.productName || 'Unbekanntes Produkt'}
+                            {deal.product?.productName || 'Unknown Product'}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             ASIN: {deal.product?.asin || 'N/A'}
