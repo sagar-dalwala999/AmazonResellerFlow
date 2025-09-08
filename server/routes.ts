@@ -480,6 +480,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint to fetch sourcing data directly from Google Sheets
+  app.get('/api/sourcing/sheets', isAuthenticated, async (req, res) => {
+    try {
+      console.log("🔍 Fetching sourcing data directly from Google Sheets...");
+      const { headers, items } = await readSourcingSheet();
+      
+      console.log(`📊 Found ${items.length} rows with headers: ${headers.join(', ')}`);
+      
+      // Return raw data directly from sheets without processing or saving to database
+      res.json({
+        success: true,
+        headers,
+        items,
+        totalRows: items.length,
+        lastUpdated: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error("❌ Error fetching from Google Sheets:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        headers: [],
+        items: []
+      });
+    }
+  });
+
   app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub; // Use authenticated user
