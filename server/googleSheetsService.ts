@@ -441,9 +441,127 @@ export class GoogleSheetsService {
       });
 
       console.log(`✅ Successfully updated ${cellRange} to "${newValue}"`);
+
+      // If marked as "Winner", copy the row to the Purchasing tab
+      if (newValue === "Winner") {
+        await this.copyRowToPurchasing(rowIndex, sheetName);
+      }
+
       return { success: true };
     } catch (error) {
       console.error('❌ Error updating Product Review:', error);
+      throw error;
+    }
+  }
+
+  async copyRowToPurchasing(rowIndex: number, sourceSheetName: string) {
+    try {
+      console.log(`📋 Copying row ${rowIndex + 2} to Purchasing tab`);
+      
+      const sheets = await this.getSheets();
+      
+      // Get the complete row data from source sheet (A-U columns)
+      const rowRange = `'${sourceSheetName}'!A${rowIndex + 2}:U${rowIndex + 2}`;
+      const rowResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: rowRange,
+      });
+
+      const rowData = rowResponse.data.values?.[0];
+      if (!rowData) {
+        throw new Error(`No data found for row ${rowIndex + 2}`);
+      }
+
+      console.log(`📦 Row data to copy:`, rowData);
+
+      // Check if Purchasing sheet exists
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+
+      const purchasingSheetName = sheetNames.find((name: string) =>
+        name.toLowerCase().includes("purchasing")
+      );
+
+      if (!purchasingSheetName) {
+        console.warn('⚠️ Purchasing sheet not found. Creating it...');
+        await this.createPurchasingSheet();
+      }
+
+      // Find the next empty row in Purchasing sheet
+      const purchasingDataResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `'${purchasingSheetName || 'Purchasing'}'!A:A`,
+      });
+
+      const nextRow = (purchasingDataResponse.data.values?.length || 0) + 1;
+      
+      // Append the row to Purchasing sheet
+      const targetRange = `'${purchasingSheetName || 'Purchasing'}'!A${nextRow}:U${nextRow}`;
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: targetRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [rowData]
+        }
+      });
+
+      console.log(`✅ Successfully copied row to Purchasing sheet at row ${nextRow}`);
+      
+    } catch (error) {
+      console.error('❌ Error copying row to Purchasing:', error);
+      throw error;
+    }
+  }
+
+  async createPurchasingSheet() {
+    try {
+      console.log('🔧 Creating Purchasing sheet...');
+      
+      const sheets = await this.getSheets();
+      
+      // Create the Purchasing sheet
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [{
+            addSheet: {
+              properties: {
+                title: 'Purchasing'
+              }
+            }
+          }]
+        }
+      });
+
+      // Add headers to the new sheet (same as sourcing sheet)
+      const headers = [
+        'Datum', 'Image URL', 'Image', 'Brand', 'Product Name', 'ASIN', 
+        'EAN Barcode', 'Source URL', 'Amazon URL', 'Cost Price', 'Sale Price',
+        'Buy Box (Average Last 90 Days)', 'Profit', 'Profit Margin', 'R.O.I.',
+        'Estimated Sales', 'FBA Seller Count', 'FBM Seller Count', 
+        'Product Review', 'Notes', 'Sourcing Method'
+      ];
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: 'Purchasing!A1:U1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers]
+        }
+      });
+
+      console.log('✅ Purchasing sheet created with headers');
+      
+    } catch (error) {
+      console.error('❌ Error creating Purchasing sheet:', error);
       throw error;
     }
   }
