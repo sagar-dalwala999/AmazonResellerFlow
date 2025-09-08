@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -33,6 +34,7 @@ import {
   Bug,
   AlertTriangle,
   ExternalLink,
+  Edit3,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -48,6 +50,9 @@ export default function SourcingInbox() {
     rowIndex: number;
     item: Record<string, string>;
   } | null>(null);
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [editingNotes, setEditingNotes] = useState<{rowIndex: number, item: Record<string, string>, currentNotes: string} | null>(null);
+  const [notesText, setNotesText] = useState("");
 
   // Fetch sourcing items directly from Google Sheets
   const {
@@ -152,6 +157,53 @@ export default function SourcingInbox() {
       markAsWinnerMutation.mutate({
         rowIndex: selectedProduct.rowIndex,
         productReview: "Winner",
+      });
+    }
+  };
+
+  // Notes editing mutation - updates Google Sheets directly
+  const editNotesMutation = useMutation({
+    mutationFn: async ({ rowIndex, notes }: { rowIndex: number, notes: string }) => {
+      return apiRequest(`/api/sourcing/sheets/${rowIndex}/notes`, 'PATCH', { notes });
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Success!",
+        description: `Notes updated for row ${variables.rowIndex + 1}`,
+        variant: "default",
+      });
+      // Invalidate and refetch the sheets data to show the update
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+      setNotesModalOpen(false);
+      setEditingNotes(null);
+      setNotesText("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update Notes: ${error.message}`,
+        variant: "destructive",
+      });
+      setNotesModalOpen(false);
+      setEditingNotes(null);
+      setNotesText("");
+    },
+  });
+
+  // Show Notes editing modal
+  const showEditNotesModal = (rowIndex: number, item: Record<string, string>) => {
+    const currentNotes = item['Notes'] || '';
+    setEditingNotes({ rowIndex, item, currentNotes });
+    setNotesText(currentNotes);
+    setNotesModalOpen(true);
+  };
+
+  // Handle save Notes
+  const handleSaveNotes = () => {
+    if (editingNotes) {
+      editNotesMutation.mutate({
+        rowIndex: editingNotes.rowIndex,
+        notes: notesText
       });
     }
   };
@@ -617,6 +669,23 @@ export default function SourcingInbox() {
                                             {item["Sourcing Method"] || "-"}
                                           </p>
                                         </div>
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <p className="text-xs text-gray-500">
+                                              Notes
+                                            </p>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-4 w-4 p-0 text-gray-400 hover:text-gray-600"
+                                              onClick={() => showEditNotesModal(rowIndex, item)}
+                                              data-testid={`button-edit-notes-${rowIndex}`}
+                                            >
+                                              <Edit3 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                          <p className="text-sm">{item['Notes'] || '-'}</p>
+                                        </div>
                                         <div className="flex items-center gap-2">
                                           {!isWinner ? (
                                             <Button
@@ -767,6 +836,60 @@ export default function SourcingInbox() {
                 {markAsWinnerMutation.isPending
                   ? "Updating..."
                   : "Yes, Mark as Winner"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Notes Editing Modal */}
+        <Dialog open={notesModalOpen} onOpenChange={setNotesModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Notes</DialogTitle>
+              <DialogDescription>
+                Update the notes for this product in Google Sheets.
+              </DialogDescription>
+            </DialogHeader>
+            {editingNotes && (
+              <div className="py-4">
+                <div className="space-y-2 mb-4">
+                  <p><strong>Product:</strong> {editingNotes.item['Product Name'] || 'Unknown'}</p>
+                  <p><strong>Brand:</strong> {editingNotes.item['Brand'] || 'Unknown'}</p>
+                  <p><strong>ASIN:</strong> {editingNotes.item['ASIN'] || 'Unknown'}</p>
+                  <p><strong>Row:</strong> {editingNotes.rowIndex + 1}</p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="notes-textarea" className="text-sm font-medium">
+                    Notes:
+                  </label>
+                  <Textarea
+                    id="notes-textarea"
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    placeholder="Enter your notes here..."
+                    rows={4}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-gray-500">
+                    This will update the "Notes" column in your Google Sheets.
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setNotesModalOpen(false)}
+                disabled={editNotesMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveNotes}
+                disabled={editNotesMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {editNotesMutation.isPending ? 'Saving...' : 'Save Notes'}
               </Button>
             </DialogFooter>
           </DialogContent>
