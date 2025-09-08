@@ -73,7 +73,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-background via-background-secondary to-background">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
       <Sidebar />
       
       <div className="flex flex-col flex-1 overflow-hidden">

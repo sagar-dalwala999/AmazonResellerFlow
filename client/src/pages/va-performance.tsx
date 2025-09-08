@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { TrendingUp, TrendingDown, Target, Award, BarChart3, Calendar, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import Sidebar from "@/components/sidebar";
 
 export default function VAPerformance() {
   const { user } = useAuth();
