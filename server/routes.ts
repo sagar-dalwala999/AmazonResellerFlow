@@ -508,6 +508,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint to fetch purchasing data directly from Google Sheets  
+  app.get('/api/purchasing/sheets', isAuthenticated, async (req, res) => {
+    try {
+      console.log("🔍 Fetching purchasing data directly from Google Sheets...");
+      const { headers, items } = await googleSheetsService.readPurchasingSheet();
+      
+      console.log(`📦 Found ${items.length} items in Purchasing sheet with headers: ${headers.join(', ')}`);
+      
+      // Return raw data directly from sheets
+      res.json({
+        success: true,
+        headers,
+        items,
+        totalRows: items.length,
+        lastUpdated: new Date().toISOString()
+      });
+      
+    } catch (error: any) {
+      console.error("❌ Error reading Purchasing Sheet:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: error.message || "Failed to read purchasing data from Google Sheets" 
+      });
+    }
+  });
+
   // New endpoint to update Product Review in Google Sheets
   app.patch('/api/sourcing/sheets/:rowIndex/product-review', isAuthenticated, async (req, res) => {
     try {

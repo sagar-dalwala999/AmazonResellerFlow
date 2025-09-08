@@ -5,6 +5,7 @@ import Sidebar from "@/components/sidebar";
 import KpiCards from "@/components/kpi-cards";
 import RecentActivity from "@/components/recent-activity";
 import PipelineOverview from "@/components/pipeline-overview";
+import PurchasingOverview from "@/components/purchasing-overview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -201,6 +202,9 @@ export default function Dashboard() {
 
             {/* Pipeline Overview */}
             <PipelineOverview />
+
+            {/* Purchasing Overview */}
+            <PurchasingOverview />
 
             {/* API Integration Status */}
             <Card className="glass border-0 card-hover">

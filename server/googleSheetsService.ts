@@ -611,6 +611,67 @@ export class GoogleSheetsService {
       throw error;
     }
   }
+
+  async readPurchasingSheet(): Promise<{
+    headers: string[];
+    items: Record<string, string>[];
+  }> {
+    try {
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+      console.log(`📋 Available sheets: ${sheetNames.join(", ")}`);
+
+      // Find the Purchasing sheet
+      let sheetName = sheetNames.find((name: string) =>
+        name.toLowerCase().includes("purchasing")
+      );
+
+      if (!sheetName) {
+        console.log(`⚠️ Purchasing sheet not found, returning empty data`);
+        return { headers: [], items: [] };
+      }
+
+      console.log(`🎯 Reading from Purchasing sheet: "${sheetName}"`);
+
+      // Get headers (A1-AC1 - 29 columns)
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `'${sheetName}'!A1:AC1`,
+      });
+
+      // Get data (A2-AC) 
+      const dataResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `'${sheetName}'!A2:AC`,
+      });
+
+      const headers = headerResponse.data.values?.[0] || [];
+      const rows = dataResponse.data.values || [];
+
+      // Convert rows to objects with header keys
+      const items = rows.map((row: string[]) => {
+        const item: Record<string, string> = {};
+        headers.forEach((header: string, index: number) => {
+          item[header] = row[index] || "";
+        });
+        return item;
+      });
+
+      console.log(`📦 Found ${items.length} items in Purchasing sheet`);
+      return { headers, items };
+    } catch (error) {
+      console.error("Error reading Purchasing sheet:", error);
+      throw error;
+    }
+  }
 }
 
 // Export utility functions for external use
