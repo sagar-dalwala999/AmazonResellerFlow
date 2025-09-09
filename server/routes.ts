@@ -508,6 +508,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sourcing Items database operations
+  app.post('/api/sourcing/items/save', isAuthenticated, async (req, res) => {
+    try {
+      const items = req.body;
+      await storage.upsertSourcingItems(items);
+      res.json({ success: true, message: 'Items saved successfully' });
+    } catch (error) {
+      console.error('Error saving sourcing items:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to save items',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/api/sourcing/items', isAuthenticated, async (req, res) => {
+    try {
+      const showArchived = req.query.archived === 'true';
+      const items = await storage.getSourcingItems(showArchived);
+      res.json({ success: true, items });
+    } catch (error) {
+      console.error('Error fetching sourcing items:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to fetch items',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/sourcing/items/:rowIndex/archive', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      await storage.archiveSourcingItem(rowIndex);
+      res.json({ success: true, message: 'Item archived successfully' });
+    } catch (error) {
+      console.error('Error archiving sourcing item:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to archive item',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.delete('/api/sourcing/items/:rowIndex', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      
+      // Delete from Google Sheets first
+      await googleSheetsService.deleteRow(rowIndex);
+      
+      // Then delete from database
+      await storage.deleteSourcingItem(rowIndex);
+      
+      res.json({ success: true, message: 'Item deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting sourcing item:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to delete item',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // New endpoint to fetch purchasing data directly from Google Sheets  
   app.get('/api/purchasing/sheets', isAuthenticated, async (req, res) => {
     try {
