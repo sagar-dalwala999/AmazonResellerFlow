@@ -61,9 +61,9 @@ export default function SourcingInbox() {
     refetchIntervalInBackground: true,
   });
 
-  // Fetch archived items from database
+  // Fetch archived items from database (only items where archived = true)
   const { data: archivedData } = useQuery({
-    queryKey: ["/api/sourcing/items"],
+    queryKey: ["/api/sourcing/items", "archived"],
     queryFn: () => apiRequest("/api/sourcing/items?archived=true"),
     enabled: !!user,
   });
@@ -71,7 +71,7 @@ export default function SourcingInbox() {
   const sourcingItems = sheetsData?.items || [];
   const archivedItems = archivedData?.items || [];
 
-  // Get list of archived ASINs for filtering
+  // Get list of archived ASINs for filtering (items that have been explicitly archived)
   const archivedAsins = new Set(archivedItems.map((item: any) => item.asin));
 
   // Filter out rows where essential fields are blank AND exclude archived items
@@ -201,6 +201,8 @@ export default function SourcingInbox() {
         title: "Success",
         description: "Item archived successfully",
       });
+      // Invalidate both queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
     },
     onError: (error) => {
@@ -278,6 +280,7 @@ export default function SourcingInbox() {
   };
 
   const handleArchiveItem = (item: SourcingItem & { _originalRowIndex: number }) => {
+    console.log('📦 Archiving item with ASIN:', item['ASIN'], 'Original row:', item._originalRowIndex);
     archiveItem.mutate(item._originalRowIndex);
   };
 
