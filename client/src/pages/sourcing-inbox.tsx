@@ -44,7 +44,6 @@ export default function SourcingInbox() {
   const [editingNotes, setEditingNotes] = useState<{rowIndex: number, item: SourcingItem, currentNotes: string} | null>(null);
   const [notesText, setNotesText] = useState("");
 
-  console.log('🔍 Auth status:', { user: !!user, isAuthLoading });
 
   // Fetch sourcing items directly from Google Sheets
   const {

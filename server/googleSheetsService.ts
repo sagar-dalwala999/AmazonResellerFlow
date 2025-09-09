@@ -648,22 +648,30 @@ export class GoogleSheetsService {
         metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
         [];
 
-      // Find the correct sheet name
-      let sheetName =
+      // Find the correct sheet name - be more specific
+      let sheetName = 
+        sheetNames.find((name: string) => name === "Sourcing") || // Exact match first
         sheetNames.find((name: string) =>
           name.toLowerCase().includes("sourcing"),
         ) ||
         sheetNames[0] ||
         "Sheet1";
 
-      const sheetId = metadataResponse.data.sheets?.find(
+      console.log(`📋 Available sheets: ${sheetNames.join(', ')}`);
+      console.log(`🎯 Using sheet: "${sheetName}"`);
+
+      const targetSheet = metadataResponse.data.sheets?.find(
         (sheet: any) => sheet.properties?.title === sheetName,
-      )?.properties?.sheetId;
+      );
+
+      const sheetId = targetSheet?.properties?.sheetId;
 
       console.log(`🎯 Deleting from sheet: "${sheetName}" (ID: ${sheetId})`);
+      console.log(`📊 Target sheet object:`, targetSheet?.properties);
 
-      if (!sheetId) {
-        throw new Error("Sheet ID not found");
+      if (sheetId === undefined || sheetId === null) {
+        console.error("❌ Available sheets:", metadataResponse.data.sheets?.map(s => s.properties));
+        throw new Error(`Sheet ID not found for sheet "${sheetName}". Available sheets: ${sheetNames.join(', ')}`);
       }
 
       // Delete the row using batchUpdate
