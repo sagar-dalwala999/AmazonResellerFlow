@@ -192,10 +192,39 @@ export default function SourcingInbox() {
     },
   });
 
-  // Archive item
+  // Archive item with optimistic updates
   const archiveItem = useMutation({
     mutationFn: async (rowIndex: number) => {
       return apiRequest(`/api/sourcing/items/${rowIndex}/archive`, 'POST');
+    },
+    onMutate: async (rowIndex: number) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/sourcing/sheets"] });
+      
+      // Snapshot the previous value for rollback
+      const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      
+      // Optimistically update to remove the item being archived
+      queryClient.setQueryData(["/api/sourcing/sheets"], (old: any) => {
+        if (!old?.items) return old;
+        
+        // Filter out items that would be archived
+        const filteredItems = old.items.filter((item: any, index: number) => {
+          const productName = item['Product Name']?.trim();
+          const asin = item['ASIN']?.trim();
+          const hasValidData = productName && productName !== '' && asin && asin !== '';
+          
+          // Keep items that don't match the row being archived
+          return !hasValidData || index !== rowIndex;
+        });
+        
+        return {
+          ...old,
+          items: filteredItems
+        };
+      });
+      
+      return { previousData };
     },
     onSuccess: () => {
       toast({
@@ -205,6 +234,29 @@ export default function SourcingInbox() {
       // Invalidate both queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ["/api/sourcing/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+    },
+    onError: (error, rowIndex, context) => {
+      // Revert the optimistic update
+      if (context?.previousData) {
+        queryClient.setQueryData(["/api/sourcing/sheets"], context.previousData);
+      }
+      
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to archive item",
+        variant: "destructive",
+      });
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -226,19 +278,54 @@ export default function SourcingInbox() {
     },
   });
 
-  // Delete item
+  // Delete item with optimistic updates
   const deleteItem = useMutation({
     mutationFn: async (rowIndex: number) => {
       return apiRequest(`/api/sourcing/items/${rowIndex}`, 'DELETE');
+    },
+    onMutate: async (rowIndex: number) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/sourcing/sheets"] });
+      
+      // Snapshot the previous value for rollback
+      const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      
+      // Optimistically update to remove the item being deleted
+      queryClient.setQueryData(["/api/sourcing/sheets"], (old: any) => {
+        if (!old?.items) return old;
+        
+        // Filter out items that would be deleted
+        const filteredItems = old.items.filter((item: any, index: number) => {
+          const productName = item['Product Name']?.trim();
+          const asin = item['ASIN']?.trim();
+          const hasValidData = productName && productName !== '' && asin && asin !== '';
+          
+          // Keep items that don't match the row being deleted
+          return !hasValidData || index !== rowIndex;
+        });
+        
+        return {
+          ...old,
+          items: filteredItems
+        };
+      });
+      
+      return { previousData };
     },
     onSuccess: () => {
       toast({
         title: "Success",
         description: "Item deleted successfully",
       });
+      // Refetch to get the accurate data
       queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
     },
-    onError: (error) => {
+    onError: (error, rowIndex, context) => {
+      // Revert the optimistic update
+      if (context?.previousData) {
+        queryClient.setQueryData(["/api/sourcing/sheets"], context.previousData);
+      }
+      
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -251,7 +338,7 @@ export default function SourcingInbox() {
         return;
       }
       toast({
-        title: "Error",
+        title: "Error", 
         description: "Failed to delete item",
         variant: "destructive",
       });
