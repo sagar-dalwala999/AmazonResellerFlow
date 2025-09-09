@@ -216,6 +216,38 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Sourcing Items table for database storage with archive functionality
+export const sourcingItems = pgTable("sourcing_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rowIndex: integer("row_index").notNull(), // Google Sheets row index
+  datum: varchar("datum"),
+  imageUrl: varchar("image_url"),
+  brand: varchar("brand"),
+  productName: varchar("product_name").notNull(),
+  asin: varchar("asin").notNull(),
+  eanBarcode: varchar("ean_barcode"),
+  sourceUrl: varchar("source_url"),
+  amazonUrl: varchar("amazon_url"),
+  costPrice: varchar("cost_price"),
+  salePrice: varchar("sale_price"),
+  buyBoxAverage: varchar("buy_box_average"),
+  profit: varchar("profit"),
+  profitMargin: varchar("profit_margin"),
+  roi: varchar("roi"),
+  estimatedSales: varchar("estimated_sales"),
+  fbaSellerCount: varchar("fba_seller_count"),
+  fbmSellerCount: varchar("fbm_seller_count"),
+  productReview: varchar("product_review"),
+  notes: varchar("notes"),
+  sourcingMethod: varchar("sourcing_method"),
+  archived: boolean("archived").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SourcingItem = typeof sourcingItems.$inferSelect;
+export type InsertSourcingItem = typeof sourcingItems.$inferInsert;
 export type Sourcing = typeof sourcing.$inferSelect;
 export type PurchasingPlan = typeof purchasingPlans.$inferSelect;
 export type Listing = typeof listings.$inferSelect;

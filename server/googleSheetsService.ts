@@ -612,6 +612,66 @@ export class GoogleSheetsService {
     }
   }
 
+  async deleteRow(rowIndex: number): Promise<{ success: boolean }> {
+    try {
+      console.log(`🗑️ Deleting row ${rowIndex + 2} from Google Sheets`);
+      
+      const sheets = await this.getSheets();
+      
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+
+      // Find the correct sheet name
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
+      const sheetId = metadataResponse.data.sheets?.find(
+        (sheet: any) => sheet.properties?.title === sheetName
+      )?.properties?.sheetId;
+
+      console.log(`🎯 Deleting from sheet: "${sheetName}" (ID: ${sheetId})`);
+      
+      if (!sheetId) {
+        throw new Error('Sheet ID not found');
+      }
+
+      // Delete the row using batchUpdate
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: sheetId,
+                  dimension: 'ROWS',
+                  startIndex: rowIndex + 1, // +1 because we want to delete the actual row (headers are row 0)
+                  endIndex: rowIndex + 2, // +2 because endIndex is exclusive
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      console.log(`✅ Successfully deleted row ${rowIndex + 2} from Google Sheets`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error deleting row from Google Sheets:', error);
+      throw error;
+    }
+  }
+
   async readPurchasingSheet(): Promise<{
     headers: string[];
     items: Record<string, string>[];

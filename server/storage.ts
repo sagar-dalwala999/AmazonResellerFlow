@@ -1,6 +1,7 @@
 import {
   users,
   sourcing,
+  sourcingItems,
   purchasingPlans,
   listings,
   activityLog,
@@ -8,6 +9,8 @@ import {
   type UpsertUser,
   type Sourcing,
   type SourcingWithRelations,
+  type SourcingItem,
+  type InsertSourcingItem,
   type PurchasingPlan,
   type PurchasingPlanWithRelations,
   type Listing,
@@ -56,6 +59,13 @@ export interface IStorage {
   // Activity log operations
   logActivity(activity: InsertActivityLog): Promise<void>;
   getRecentActivities(limit?: number): Promise<ActivityLog[]>;
+
+  // Sourcing Items operations (database storage with archive)
+  saveSourcingItem(item: InsertSourcingItem): Promise<SourcingItem>;
+  getSourcingItems(showArchived?: boolean): Promise<SourcingItem[]>;
+  archiveSourcingItem(rowIndex: number): Promise<void>;
+  deleteSourcingItem(rowIndex: number): Promise<void>;
+  upsertSourcingItems(items: InsertSourcingItem[]): Promise<void>;
 
   // Dashboard data
   getKpiData(): Promise<{
@@ -465,6 +475,51 @@ export class DatabaseStorage implements IStorage {
         totalProfit: Number(totalProfit),
       },
     };
+  }
+
+  // Sourcing Items operations (database storage with archive)
+  async saveSourcingItem(item: InsertSourcingItem): Promise<SourcingItem> {
+    const [sourcingItem] = await db
+      .insert(sourcingItems)
+      .values(item)
+      .onConflictDoUpdate({
+        target: [sourcingItems.rowIndex],
+        set: {
+          ...item,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return sourcingItem;
+  }
+
+  async getSourcingItems(showArchived = false): Promise<SourcingItem[]> {
+    return await db
+      .select()
+      .from(sourcingItems)
+      .where(showArchived ? undefined : eq(sourcingItems.archived, false))
+      .orderBy(desc(sourcingItems.createdAt));
+  }
+
+  async archiveSourcingItem(rowIndex: number): Promise<void> {
+    await db
+      .update(sourcingItems)
+      .set({ archived: true, updatedAt: new Date() })
+      .where(eq(sourcingItems.rowIndex, rowIndex));
+  }
+
+  async deleteSourcingItem(rowIndex: number): Promise<void> {
+    await db
+      .delete(sourcingItems)
+      .where(eq(sourcingItems.rowIndex, rowIndex));
+  }
+
+  async upsertSourcingItems(items: InsertSourcingItem[]): Promise<void> {
+    if (items.length === 0) return;
+    
+    for (const item of items) {
+      await this.saveSourcingItem(item);
+    }
   }
 }
 
