@@ -141,7 +141,7 @@ export default function SourcingInbox() {
   // Save items to database
   const saveItemsToDatabase = useMutation({
     mutationFn: async (items: any[]) => {
-      return apiRequest('POST', '/api/sourcing/items/save', items);
+      return apiRequest('/api/sourcing/items/save', 'POST', items);
     },
     onSuccess: () => {
       toast({
@@ -172,7 +172,7 @@ export default function SourcingInbox() {
   // Archive item
   const archiveItem = useMutation({
     mutationFn: async (rowIndex: number) => {
-      return apiRequest('POST', `/api/sourcing/items/${rowIndex}/archive`);
+      return apiRequest(`/api/sourcing/items/${rowIndex}/archive`, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -204,7 +204,7 @@ export default function SourcingInbox() {
   // Delete item
   const deleteItem = useMutation({
     mutationFn: async (rowIndex: number) => {
-      return apiRequest('DELETE', `/api/sourcing/items/${rowIndex}`);
+      return apiRequest(`/api/sourcing/items/${rowIndex}`, 'DELETE');
     },
     onSuccess: () => {
       toast({
