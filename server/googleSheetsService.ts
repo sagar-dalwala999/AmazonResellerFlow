@@ -394,7 +394,6 @@ export class GoogleSheetsService {
         });
         return item;
       });
-      console.log("rows", items);
       return { headers, items };
     } catch (error) {
       console.error("Error reading sourcing sheet:", error);
@@ -404,10 +403,12 @@ export class GoogleSheetsService {
 
   async updateProductReview(rowIndex: number, newValue: string) {
     try {
-      console.log(`🔄 Updating Product Review for row ${rowIndex + 2} to "${newValue}"`);
-      
+      console.log(
+        `🔄 Updating Product Review for row ${rowIndex + 2} to "${newValue}"`,
+      );
+
       const sheets = await this.getSheets();
-      
+
       // Get sheet metadata to find correct sheet name
       const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
@@ -426,18 +427,18 @@ export class GoogleSheetsService {
         "Sheet1";
 
       console.log(`🎯 Updating in sheet: "${sheetName}"`);
-      
+
       // Product Review is column S (19th column in our A-U range)
-      const columnLetter = 'S';
+      const columnLetter = "S";
       const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`; // +2 because row 1 is headers and we're 0-indexed
-      
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
         range: cellRange,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[newValue]]
-        }
+          values: [[newValue]],
+        },
       });
 
       console.log(`✅ Successfully updated ${cellRange} to "${newValue}"`);
@@ -449,7 +450,7 @@ export class GoogleSheetsService {
 
       return { success: true };
     } catch (error) {
-      console.error('❌ Error updating Product Review:', error);
+      console.error("❌ Error updating Product Review:", error);
       throw error;
     }
   }
@@ -457,9 +458,9 @@ export class GoogleSheetsService {
   async copyRowToPurchasing(rowIndex: number, sourceSheetName: string) {
     try {
       console.log(`📋 Copying row ${rowIndex + 2} to Purchasing tab`);
-      
+
       const sheets = await this.getSheets();
-      
+
       // Get the complete row data from source sheet (A-U columns)
       const rowRange = `'${sourceSheetName}'!A${rowIndex + 2}:U${rowIndex + 2}`;
       const rowResponse = await sheets.spreadsheets.values.get({
@@ -484,84 +485,102 @@ export class GoogleSheetsService {
         [];
 
       const purchasingSheetName = sheetNames.find((name: string) =>
-        name.toLowerCase().includes("purchasing")
+        name.toLowerCase().includes("purchasing"),
       );
 
       if (!purchasingSheetName) {
-        console.warn('⚠️ Purchasing sheet not found. Creating it...');
+        console.warn("⚠️ Purchasing sheet not found. Creating it...");
         await this.createPurchasingSheet();
       }
 
       // Find the next empty row in Purchasing sheet
       const purchasingDataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: `'${purchasingSheetName || 'Purchasing'}'!A:A`,
+        range: `'${purchasingSheetName || "Purchasing"}'!A:A`,
       });
 
       const nextRow = (purchasingDataResponse.data.values?.length || 0) + 1;
-      
+
       // Append the row to Purchasing sheet
-      const targetRange = `'${purchasingSheetName || 'Purchasing'}'!A${nextRow}:U${nextRow}`;
-      
+      const targetRange = `'${purchasingSheetName || "Purchasing"}'!A${nextRow}:U${nextRow}`;
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
         range: targetRange,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [rowData]
-        }
+          values: [rowData],
+        },
       });
 
-      console.log(`✅ Successfully copied row to Purchasing sheet at row ${nextRow}`);
-      
+      console.log(
+        `✅ Successfully copied row to Purchasing sheet at row ${nextRow}`,
+      );
     } catch (error) {
-      console.error('❌ Error copying row to Purchasing:', error);
+      console.error("❌ Error copying row to Purchasing:", error);
       throw error;
     }
   }
 
   async createPurchasingSheet() {
     try {
-      console.log('🔧 Creating Purchasing sheet...');
-      
+      console.log("🔧 Creating Purchasing sheet...");
+
       const sheets = await this.getSheets();
-      
+
       // Create the Purchasing sheet
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: this.spreadsheetId,
         requestBody: {
-          requests: [{
-            addSheet: {
-              properties: {
-                title: 'Purchasing'
-              }
-            }
-          }]
-        }
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: "Purchasing",
+                },
+              },
+            },
+          ],
+        },
       });
 
       // Add headers to the new sheet (same as sourcing sheet)
       const headers = [
-        'Datum', 'Image URL', 'Image', 'Brand', 'Product Name', 'ASIN', 
-        'EAN Barcode', 'Source URL', 'Amazon URL', 'Cost Price', 'Sale Price',
-        'Buy Box (Average Last 90 Days)', 'Profit', 'Profit Margin', 'R.O.I.',
-        'Estimated Sales', 'FBA Seller Count', 'FBM Seller Count', 
-        'Product Review', 'Notes', 'Sourcing Method'
+        "Datum",
+        "Image URL",
+        "Image",
+        "Brand",
+        "Product Name",
+        "ASIN",
+        "EAN Barcode",
+        "Source URL",
+        "Amazon URL",
+        "Cost Price",
+        "Sale Price",
+        "Buy Box (Average Last 90 Days)",
+        "Profit",
+        "Profit Margin",
+        "R.O.I.",
+        "Estimated Sales",
+        "FBA Seller Count",
+        "FBM Seller Count",
+        "Product Review",
+        "Notes",
+        "Sourcing Method",
       ];
 
       await sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
-        range: 'Purchasing!A1:U1',
-        valueInputOption: 'USER_ENTERED',
+        range: "Purchasing!A1:U1",
+        valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [headers]
-        }
+          values: [headers],
+        },
       });
 
-      console.log('✅ Purchasing sheet created with headers');
-      
+      console.log("✅ Purchasing sheet created with headers");
     } catch (error) {
-      console.error('❌ Error creating Purchasing sheet:', error);
+      console.error("❌ Error creating Purchasing sheet:", error);
       throw error;
     }
   }
@@ -569,9 +588,9 @@ export class GoogleSheetsService {
   async updateNotes(rowIndex: number, newValue: string) {
     try {
       console.log(`🔄 Updating Notes for row ${rowIndex + 2} to "${newValue}"`);
-      
+
       const sheets = await this.getSheets();
-      
+
       // Get sheet metadata to find correct sheet name
       const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
@@ -590,24 +609,26 @@ export class GoogleSheetsService {
         "Sheet1";
 
       console.log(`🎯 Updating Notes in sheet: "${sheetName}"`);
-      
+
       // Notes is column T (20th column in our A-U range)
-      const columnLetter = 'T';
+      const columnLetter = "T";
       const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`; // +2 because row 1 is headers and we're 0-indexed
-      
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
         range: cellRange,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[newValue]]
-        }
+          values: [[newValue]],
+        },
       });
 
-      console.log(`✅ Successfully updated Notes at ${cellRange} to "${newValue}"`);
+      console.log(
+        `✅ Successfully updated Notes at ${cellRange} to "${newValue}"`,
+      );
       return { success: true };
     } catch (error) {
-      console.error('❌ Error updating Notes:', error);
+      console.error("❌ Error updating Notes:", error);
       throw error;
     }
   }
@@ -615,9 +636,9 @@ export class GoogleSheetsService {
   async deleteRow(rowIndex: number): Promise<{ success: boolean }> {
     try {
       console.log(`🗑️ Deleting row ${rowIndex + 2} from Google Sheets`);
-      
+
       const sheets = await this.getSheets();
-      
+
       // Get sheet metadata to find correct sheet name
       const metadataResponse = await sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
@@ -636,13 +657,13 @@ export class GoogleSheetsService {
         "Sheet1";
 
       const sheetId = metadataResponse.data.sheets?.find(
-        (sheet: any) => sheet.properties?.title === sheetName
+        (sheet: any) => sheet.properties?.title === sheetName,
       )?.properties?.sheetId;
 
       console.log(`🎯 Deleting from sheet: "${sheetName}" (ID: ${sheetId})`);
-      
+
       if (!sheetId) {
-        throw new Error('Sheet ID not found');
+        throw new Error("Sheet ID not found");
       }
 
       // Delete the row using batchUpdate
@@ -654,7 +675,7 @@ export class GoogleSheetsService {
               deleteDimension: {
                 range: {
                   sheetId: sheetId,
-                  dimension: 'ROWS',
+                  dimension: "ROWS",
                   startIndex: rowIndex + 1, // +1 because we want to delete the actual row (headers are row 0)
                   endIndex: rowIndex + 2, // +2 because endIndex is exclusive
                 },
@@ -664,10 +685,12 @@ export class GoogleSheetsService {
         },
       });
 
-      console.log(`✅ Successfully deleted row ${rowIndex + 2} from Google Sheets`);
+      console.log(
+        `✅ Successfully deleted row ${rowIndex + 2} from Google Sheets`,
+      );
       return { success: true };
     } catch (error) {
-      console.error('❌ Error deleting row from Google Sheets:', error);
+      console.error("❌ Error deleting row from Google Sheets:", error);
       throw error;
     }
   }
@@ -691,7 +714,7 @@ export class GoogleSheetsService {
 
       // Find the Purchasing sheet
       let sheetName = sheetNames.find((name: string) =>
-        name.toLowerCase().includes("purchasing")
+        name.toLowerCase().includes("purchasing"),
       );
 
       if (!sheetName) {
@@ -707,7 +730,7 @@ export class GoogleSheetsService {
         range: `'${sheetName}'!A1:AC1`,
       });
 
-      // Get data (A2-AC) 
+      // Get data (A2-AC)
       const dataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
         range: `'${sheetName}'!A2:AC`,
@@ -726,13 +749,15 @@ export class GoogleSheetsService {
       });
 
       // Filter out rows where Product Name and ASIN are both missing or empty
-      const filteredItems = items.filter(item => {
-        const productName = item['Product Name']?.trim();
-        const asin = item['ASIN']?.trim();
-        return productName && productName !== '' && asin && asin !== '';
+      const filteredItems = items.filter((item) => {
+        const productName = item["Product Name"]?.trim();
+        const asin = item["ASIN"]?.trim();
+        return productName && productName !== "" && asin && asin !== "";
       });
 
-      console.log(`📦 Found ${items.length} total items, ${filteredItems.length} items after filtering out empty Product Name/ASIN`);
+      console.log(
+        `📦 Found ${items.length} total items, ${filteredItems.length} items after filtering out empty Product Name/ASIN`,
+      );
       return { headers, items: filteredItems };
     } catch (error) {
       console.error("Error reading Purchasing sheet:", error);
