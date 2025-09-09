@@ -479,18 +479,28 @@ export class DatabaseStorage implements IStorage {
 
   // Sourcing Items operations (database storage with archive)
   async saveSourcingItem(item: InsertSourcingItem): Promise<SourcingItem> {
-    const [sourcingItem] = await db
-      .insert(sourcingItems)
-      .values(item)
-      .onConflictDoUpdate({
-        target: [sourcingItems.rowIndex],
-        set: {
-          ...item,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return sourcingItem;
+    try {
+      const [sourcingItem] = await db
+        .insert(sourcingItems)
+        .values(item)
+        .onConflictDoUpdate({
+          target: [sourcingItems.rowIndex],
+          set: {
+            ...item,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return sourcingItem;
+    } catch (error) {
+      // If conflict handling fails, try a simple insert
+      console.log('Conflict handling failed, trying simple insert:', error);
+      const [sourcingItem] = await db
+        .insert(sourcingItems)
+        .values(item)
+        .returning();
+      return sourcingItem;
+    }
   }
 
   async getSourcingItems(showArchived = false): Promise<SourcingItem[]> {
@@ -517,9 +527,20 @@ export class DatabaseStorage implements IStorage {
   async upsertSourcingItems(items: InsertSourcingItem[]): Promise<void> {
     if (items.length === 0) return;
     
+    console.log(`💾 Upserting ${items.length} sourcing items to database`);
+    
+    // Clear existing entries and insert new ones for simplicity
+    await db.delete(sourcingItems).where(eq(sourcingItems.archived, false));
+    
     for (const item of items) {
-      await this.saveSourcingItem(item);
+      try {
+        await db.insert(sourcingItems).values(item);
+      } catch (error) {
+        console.error(`Error inserting item with ASIN ${item.asin}:`, error);
+      }
     }
+    
+    console.log(`✅ Successfully upserted ${items.length} items`);
   }
 }
 

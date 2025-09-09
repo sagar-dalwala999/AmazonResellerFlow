@@ -37,12 +37,14 @@ interface SourcingItem {
 }
 
 export default function SourcingInbox() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState<{rowIndex: number, item: SourcingItem, currentNotes: string} | null>(null);
   const [notesText, setNotesText] = useState("");
+
+  console.log('🔍 Auth status:', { user: !!user, isAuthLoading });
 
   // Fetch sourcing items directly from Google Sheets
   const {
@@ -144,6 +146,7 @@ export default function SourcingInbox() {
       return apiRequest('/api/sourcing/items/save', 'POST', items);
     },
     onSuccess: () => {
+      console.log('✅ Items saved to database successfully');
       toast({
         title: "Success",
         description: "Items saved to database successfully",
@@ -296,12 +299,13 @@ export default function SourcingInbox() {
     }
   };
 
-  // Auto-sync on data load
+  // Auto-sync on data load (only if user is authenticated and auth is loaded)
   React.useEffect(() => {
-    if (validItems.length > 0 && !saveItemsToDatabase.isPending) {
+    if (validItems.length > 0 && !saveItemsToDatabase.isPending && user && !isAuthLoading) {
+      console.log('🔄 Auto-syncing items to database...');
       syncItemsToDatabase();
     }
-  }, [validItems.length]);
+  }, [validItems.length, user, isAuthLoading]);
 
   const formatPrice = (price: string) => {
     if (!price) return "€0.00";
@@ -320,7 +324,7 @@ export default function SourcingInbox() {
     return "text-red-600 bg-red-50 border-red-200";
   };
 
-  if (isLoading) {
+  if (isLoading || isAuthLoading) {
     return (
       <div className="flex h-screen bg-gray-50">
         <Sidebar />
