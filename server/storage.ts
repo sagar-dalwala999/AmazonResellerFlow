@@ -507,7 +507,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(sourcingItems)
-      .where(showArchived ? undefined : eq(sourcingItems.archived, false))
+      .where(eq(sourcingItems.archived, showArchived))
       .orderBy(desc(sourcingItems.createdAt));
   }
 

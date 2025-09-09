@@ -66,19 +66,15 @@ export default function SourcingInbox() {
     queryKey: ["/api/sourcing/items", "archived"],
     queryFn: () => apiRequest("/api/sourcing/items?archived=true"),
     enabled: !!user,
+    staleTime: 0, // Force fresh data
+    gcTime: 0,
   });
 
   const sourcingItems = sheetsData?.items || [];
   const archivedItems = archivedData?.items || [];
 
-  // Debug logging
-  console.log('🔍 Debug - Sourcing items count:', sourcingItems.length);
-  console.log('🔍 Debug - Archived items count:', archivedItems.length);
-  console.log('🔍 Debug - Archived items:', archivedItems);
-
   // Get list of archived ASINs for filtering (items that have been explicitly archived)
   const archivedAsins = new Set(archivedItems.map((item: any) => item.asin));
-  console.log('🔍 Debug - Archived ASINs:', Array.from(archivedAsins));
 
   // Filter out rows where essential fields are blank AND exclude archived items
   // Also keep track of original row indices
@@ -92,16 +88,8 @@ export default function SourcingInbox() {
       const asin = item['ASIN']?.trim();
       const hasValidData = productName && productName !== '' && asin && asin !== '';
       const isNotArchived = !archivedAsins.has(asin);
-      
-      // Debug logging for each item
-      if (hasValidData) {
-        console.log(`🔍 Debug - Item ASIN: ${asin}, isNotArchived: ${isNotArchived}, archived ASINs has: ${archivedAsins.has(asin)}`);
-      }
-      
       return hasValidData && isNotArchived;
     });
-
-  console.log('🔍 Debug - Valid items count:', validItems.length);
 
   // Update Product Review (Winner status)
   const updateProductReview = useMutation({
