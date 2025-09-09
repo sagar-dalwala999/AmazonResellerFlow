@@ -61,14 +61,33 @@ export default function SourcingInbox() {
     refetchIntervalInBackground: true,
   });
 
-  const sourcingItems = sheetsData?.items || [];
-
-  // Filter out rows where essential fields are blank
-  const validItems = sourcingItems.filter((item: SourcingItem) => {
-    const productName = item['Product Name']?.trim();
-    const asin = item['ASIN']?.trim();
-    return productName && productName !== '' && asin && asin !== '';
+  // Fetch archived items from database
+  const { data: archivedData } = useQuery({
+    queryKey: ["/api/sourcing/items"],
+    queryFn: () => apiRequest("/api/sourcing/items?archived=true"),
+    enabled: !!user,
   });
+
+  const sourcingItems = sheetsData?.items || [];
+  const archivedItems = archivedData?.items || [];
+
+  // Get list of archived ASINs for filtering
+  const archivedAsins = new Set(archivedItems.map((item: any) => item.asin));
+
+  // Filter out rows where essential fields are blank AND exclude archived items
+  // Also keep track of original row indices
+  const validItems = sourcingItems
+    .map((item: SourcingItem, originalIndex: number) => ({
+      ...item,
+      _originalRowIndex: originalIndex
+    }))
+    .filter((item: SourcingItem & { _originalRowIndex: number }) => {
+      const productName = item['Product Name']?.trim();
+      const asin = item['ASIN']?.trim();
+      const hasValidData = productName && productName !== '' && asin && asin !== '';
+      const isNotArchived = !archivedAsins.has(asin);
+      return hasValidData && isNotArchived;
+    });
 
   // Update Product Review (Winner status)
   const updateProductReview = useMutation({
@@ -258,13 +277,14 @@ export default function SourcingInbox() {
     });
   };
 
-  const handleArchiveItem = (rowIndex: number) => {
-    archiveItem.mutate(rowIndex);
+  const handleArchiveItem = (item: SourcingItem & { _originalRowIndex: number }) => {
+    archiveItem.mutate(item._originalRowIndex);
   };
 
-  const handleDeleteItem = (rowIndex: number) => {
+  const handleDeleteItem = (item: SourcingItem & { _originalRowIndex: number }) => {
     if (confirm('Are you sure you want to delete this item? This will remove it from Google Sheets and cannot be undone.')) {
-      deleteItem.mutate(rowIndex);
+      console.log('🗑️ Deleting item with original row index:', item._originalRowIndex);
+      deleteItem.mutate(item._originalRowIndex);
     }
   };
 
@@ -558,7 +578,7 @@ export default function SourcingInbox() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleArchiveItem(index)}
+                          onClick={() => handleArchiveItem(item)}
                           disabled={archiveItem.isPending}
                           className="text-orange-600 hover:text-orange-700"
                           data-testid={`archive-${index}`}
@@ -568,7 +588,7 @@ export default function SourcingInbox() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDeleteItem(index)}
+                          onClick={() => handleDeleteItem(item)}
                           disabled={deleteItem.isPending}
                           className="text-red-600 hover:text-red-700"
                           data-testid={`delete-${index}`}
