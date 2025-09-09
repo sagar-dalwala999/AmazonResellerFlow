@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -25,7 +25,8 @@ import {
   Upload,
   Trash2,
   Copy,
-  CheckCircle2
+  CheckCircle2,
+  Archive
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -137,6 +138,101 @@ export default function SourcingInbox() {
     },
   });
 
+  // Save items to database
+  const saveItemsToDatabase = useMutation({
+    mutationFn: async (items: any[]) => {
+      return apiRequest('POST', '/api/sourcing/items/save', items);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Items saved to database successfully",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to save items to database",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Archive item
+  const archiveItem = useMutation({
+    mutationFn: async (rowIndex: number) => {
+      return apiRequest('POST', `/api/sourcing/items/${rowIndex}/archive`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Item archived successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to archive item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete item
+  const deleteItem = useMutation({
+    mutationFn: async (rowIndex: number) => {
+      return apiRequest('DELETE', `/api/sourcing/items/${rowIndex}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Item deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEditNotes = (rowIndex: number, item: SourcingItem) => {
     setEditingNotes({ rowIndex, item, currentNotes: item.Notes || '' });
     setNotesText(item.Notes || '');
@@ -158,6 +254,54 @@ export default function SourcingInbox() {
       productReview: "Winner"
     });
   };
+
+  const handleArchiveItem = (rowIndex: number) => {
+    archiveItem.mutate(rowIndex);
+  };
+
+  const handleDeleteItem = (rowIndex: number) => {
+    if (confirm('Are you sure you want to delete this item? This will remove it from Google Sheets and cannot be undone.')) {
+      deleteItem.mutate(rowIndex);
+    }
+  };
+
+  // Auto-sync filtered items to database
+  const syncItemsToDatabase = () => {
+    if (validItems.length > 0) {
+      const itemsToSave = validItems.map((item: SourcingItem, index: number) => ({
+        rowIndex: index,
+        datum: item.Datum || '',
+        imageUrl: item['Image URL'] || '',
+        brand: item.Brand || '',
+        productName: item['Product Name'] || '',
+        asin: item.ASIN || '',
+        eanBarcode: item['EAN Barcode'] || '',
+        sourceUrl: item['Source URL'] || '',
+        amazonUrl: item['Amazon URL'] || '',
+        costPrice: item['Cost Price'] || '',
+        salePrice: item['Sale Price'] || '',
+        buyBoxAverage: item['Buy Box (Average Last 90 Days)'] || '',
+        profit: item.Profit || '',
+        profitMargin: item['Profit Margin'] || '',
+        roi: item['R.O.I.'] || '',
+        estimatedSales: item['Estimated Sales'] || '',
+        fbaSellerCount: item['FBA Seller Count'] || '',
+        fbmSellerCount: item['FBM Seller Count'] || '',
+        productReview: item['Product Review'] || '',
+        notes: item.Notes || '',
+        sourcingMethod: item['Sourcing Method'] || '',
+      }));
+      
+      saveItemsToDatabase.mutate(itemsToSave);
+    }
+  };
+
+  // Auto-sync on data load
+  React.useEffect(() => {
+    if (validItems.length > 0 && !saveItemsToDatabase.isPending) {
+      syncItemsToDatabase();
+    }
+  }, [validItems.length]);
 
   const formatPrice = (price: string) => {
     if (!price) return "€0.00";
@@ -410,18 +554,22 @@ export default function SourcingInbox() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-gray-400 hover:text-red-500"
-                          data-testid={`delete-product-${index}`}
+                          onClick={() => handleArchiveItem(index)}
+                          disabled={archiveItem.isPending}
+                          className="text-orange-600 hover:text-orange-700"
+                          data-testid={`archive-${index}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Archive className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-gray-400 hover:text-blue-500"
-                          data-testid={`copy-product-${index}`}
+                          onClick={() => handleDeleteItem(index)}
+                          disabled={deleteItem.isPending}
+                          className="text-red-600 hover:text-red-700"
+                          data-testid={`delete-${index}`}
                         >
-                          <Copy className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
