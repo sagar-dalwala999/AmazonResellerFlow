@@ -26,7 +26,8 @@ import {
   Trash2,
   Copy,
   CheckCircle2,
-  Archive
+  Archive,
+  ChevronDown
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -69,8 +70,8 @@ export default function SourcingInbox() {
     gcTime: 0,
   });
 
-  const sourcingItems = sheetsData?.items || [];
-  const archivedItems = archivedData?.items || [];
+  const sourcingItems: SourcingItem[] = (sheetsData as any)?.items || [];
+  const archivedItems: any[] = (archivedData as any)?.items || [];
 
   // Get list of archived ASINs for filtering (items that have been explicitly archived)
   const archivedAsins = new Set(archivedItems.map((item: any) => item.asin));
@@ -482,208 +483,218 @@ export default function SourcingInbox() {
                   className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white"
                   data-testid={`product-card-${index}`}
                 >
-                  <div className="p-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                      {/* Left Column - Date/Time and Product Image/Info */}
-                      <div className="lg:col-span-2">
-                        <div className="flex flex-col space-y-3">
-                          {/* Date/Time */}
-                          <div className="text-xs text-gray-500">
-                            <span>{item.Datum || 'Feb 7, 2025'}</span><br />
-                            <span>00:00:00</span>
+                  <div className="p-6">
+                    {/* Top Section: Product Info + Colored Metric Cards */}
+                    <div className="flex gap-6 mb-6">
+                      {/* Left: Product Information */}
+                      <div className="flex-shrink-0 w-64">
+                        {/* Date */}
+                        <div className="text-sm text-gray-500 mb-4">
+                          {item.Datum || 'Feb 7, 2025'}<br />
+                          00:00:00
+                        </div>
+                        
+                        {/* Product Image and Details */}
+                        <div className="flex items-start gap-3 mb-4">
+                          {item['Image URL'] ? (
+                            <img
+                              src={item['Image URL']}
+                              alt={item['Product Name'] || 'Product'}
+                              className="w-16 h-16 rounded-lg object-cover bg-gray-100"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
+                              <span className="text-gray-400 text-xs">No Image</span>
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <h3 className="font-medium text-gray-900 text-sm leading-tight mb-1" data-testid={`product-title-${index}`}>
+                              {item['Product Name'] || 'Unknown Product'}
+                            </h3>
+                            <p className="text-sm text-gray-600">{item['Brand'] || 'Unknown Brand'}</p>
+                          </div>
+                        </div>
+                        
+                        {/* ASIN and EAN */}
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">ASIN</span>
+                            <span className="text-gray-900 font-medium" data-testid={`product-asin-${index}`}>{item['ASIN'] || 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">EAN</span>
+                            <span className="text-gray-900" data-testid={`product-ean-${index}`}>{item['EAN Barcode'] || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Colored Metric Cards Grid */}
+                      <div className="flex-1">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                          {/* Buy Price - Blue */}
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="text-xs text-blue-600 font-medium mb-1">Buy Price</div>
+                            <div className="text-sm font-bold text-blue-700">{formatPrice(item['Cost Price'])}</div>
                           </div>
                           
-                          {/* Product Image and Basic Info */}
-                          <div className="flex items-start space-x-2">
-                            {item['Image URL'] ? (
-                              <img
-                                src={item['Image URL']}
-                                alt={item['Product Name'] || 'Product'}
-                                className="w-12 h-12 rounded-lg object-cover bg-gray-100"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                                <span className="text-gray-400 text-xs">No Image</span>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 text-xs leading-tight line-clamp-2" data-testid={`product-title-${index}`}>
-                                {item['Product Name'] || 'Unknown Product'}
-                              </h3>
-                              <p className="text-xs text-gray-600 mt-1">{item['Brand'] || 'Unknown Brand'}</p>
-                            </div>
+                          {/* Sell Price - Green */}
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="text-xs text-green-600 font-medium mb-1">Sell Price</div>
+                            <div className="text-sm font-bold text-green-700">{formatPrice(item['Sale Price'])}</div>
+                            <div className="text-xs text-green-600">90d: {formatPrice(item['Buy Box (Average Last 90 Days)'])}</div>
                           </div>
                           
-                          {/* Basic Product Data */}
-                          <div className="space-y-1 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">ASIN:</span>
-                              <span className="text-gray-900 font-medium" data-testid={`product-asin-${index}`}>{item['ASIN'] || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">EAN:</span>
-                              <span className="text-gray-900" data-testid={`product-ean-${index}`}>{item['EAN Barcode'] || 'N/A'}</span>
-                            </div>
+                          {/* Profit - Light Green */}
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                            <div className="text-xs text-emerald-600 font-medium mb-1">Profit</div>
+                            <div className="text-sm font-bold text-emerald-700">{formatPrice(item['Profit'])}</div>
+                            <div className="text-xs text-emerald-600">{item['Profit Margin'] || '0%'} margin</div>
+                          </div>
+                          
+                          {/* ROI - Purple */}
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                            <div className="text-xs text-purple-600 font-medium mb-1">ROI</div>
+                            <div className="text-sm font-bold text-purple-700">{roi}</div>
+                          </div>
+                          
+                          {/* Est. Sales - Orange */}
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="text-xs text-orange-600 font-medium mb-1">Est. Sales</div>
+                            <div className="text-sm font-bold text-orange-700">{estSales}/mo</div>
+                          </div>
+                          
+                          {/* Breakeven - Beige */}
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div className="text-xs text-amber-600 font-medium mb-1">Breakeven</div>
+                            <div className="text-sm font-bold text-amber-700">{formatPrice(item['Sale Price'])}</div>
+                            <div className="text-xs text-amber-600">360d Low: {formatPrice(item['Cost Price'])}</div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Middle Column - Pricing Information */}
-                      <div className="lg:col-span-3">
-                        <div className="space-y-3">
-                          <h4 className="text-sm font-medium text-gray-700">💰 Pricing</h4>
-                          <div className="space-y-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Buy Price:</span>
-                              <span className="text-blue-600 font-medium">{formatPrice(item['Cost Price'])}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Sell Price:</span>
-                              <span className="text-green-600 font-medium">{formatPrice(item['Sale Price'])}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Profit:</span>
-                              <span className={`font-medium ${profit > 15 ? 'text-green-600' : profit > 5 ? 'text-orange-600' : 'text-red-600'}`}>
-                                {formatPrice(item['Profit'])}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">ROI:</span>
-                              <span className="text-purple-600 font-medium">{roi}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Middle Right Column - Performance Data */}
-                      <div className="lg:col-span-3">
-                        <div className="space-y-3">
-                          <h4 className="text-sm font-medium text-gray-700">📊 Performance</h4>
-                          <div className="space-y-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Est. Sales:</span>
-                              <span className="text-orange-600 font-medium">{estSales}/mo</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Breakeven:</span>
-                              <span className="text-gray-900 font-medium">{breakeven}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">FBA Sellers:</span>
-                              <span className="text-blue-600 font-medium">{item['FBA Seller Count'] || '0'}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">FBM Sellers:</span>
-                              <span className="text-green-600 font-medium">{item['FBM Seller Count'] || '0'}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Column - Status and Actions */}
-                      <div className="lg:col-span-2">
-                        <div className="space-y-3">
-                          {/* Winner Status */}
-                          <div>
-                            {isWinner ? (
-                              <Badge className="bg-green-500 text-white w-full justify-center">
-                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                        
+                        {/* Winner Status */}
+                        <div className="flex items-center justify-between mb-4">
+                          {isWinner ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
+                                <CheckCircle2 className="w-4 h-4 mr-1" />
                                 Winner
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => handleMarkAsWinner(index)}
-                                disabled={updateProductReview.isPending}
-                                className="bg-green-500 hover:bg-green-600 text-white w-full"
-                                data-testid={`mark-winner-${index}`}
-                              >
-                                Mark as Winner
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Sourcing Method */}
-                          <div>
-                            <Select defaultValue={item['Sourcing Method'] || 'Online Arbitrage'}>
-                              <SelectTrigger className="w-full h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Online Arbitrage">Online Arbitrage</SelectItem>
-                                <SelectItem value="Retail Arbitrage">Retail Arbitrage</SelectItem>
-                                <SelectItem value="Wholesale">Wholesale</SelectItem>
-                                <SelectItem value="Private Label">Private Label</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Far Right Column - Action Buttons */}
-                      <div className="lg:col-span-2">
-                        <div className="flex flex-col gap-2">
-                          {item['Amazon URL'] && (
+                              </div>
+                              <ChevronDown className="w-4 h-4 text-gray-400" />
+                            </div>
+                          ) : (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={() => window.open(item['Amazon URL'], '_blank')}
-                              data-testid={`amazon-link-${index}`}
-                              className="w-full justify-start"
+                              variant="outline"
+                              onClick={() => updateProductReview.mutate({ rowIndex: (item as any)._originalRowIndex, productReview: 'Winner' })}
+                              className="text-green-600 border-green-300 hover:bg-green-50"
                             >
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Amazon
+                              Mark as Winner
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditNotes(index, item)}
-                            data-testid={`edit-notes-${index}`}
-                            className="w-full justify-start text-blue-600 hover:text-blue-700"
-                          >
-                            <Edit3 className="w-4 h-4 mr-2" />
-                            Notes
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleArchiveItem(item as SourcingItem & { _originalRowIndex: number })}
-                            disabled={archiveItem.isPending}
-                            className="w-full justify-start text-orange-600 hover:text-orange-700"
-                            data-testid={`archive-${index}`}
-                          >
-                            <Archive className="w-4 h-4 mr-2" />
-                            Archive
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteItem(item as SourcingItem & { _originalRowIndex: number })}
-                            disabled={deleteItem.isPending}
-                            className="w-full justify-start text-red-600 hover:text-red-700"
-                            data-testid={`delete-${index}`}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </Button>
+                          
+                          <div className="text-sm text-gray-600">
+                            Sourcing Method
+                            <ChevronDown className="w-4 h-4 inline ml-1" />
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Notes Section - Full Width */}
-                    {item.Notes && (
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-                          <span className="font-medium text-gray-900">Notes: </span>
-                          {item.Notes}
+                    {/* Bottom Section: Stock Levels, Active Offers, Notes, Files */}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 pt-4 border-t border-gray-100">
+                      {/* Stock Levels */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Stock Levels</h5>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Amazon:</span>
+                            <span className="font-medium">150</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-blue-600">FBA:</span>
+                            <span className="font-medium">{item['FBA Seller Count'] || '0'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-green-600">FBM:</span>
+                            <span className="font-medium">{item['FBM Seller Count'] || '0'}</span>
+                          </div>
                         </div>
                       </div>
-                    )}
+                      
+                      {/* Active Offers */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Active Offers</h5>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-blue-600">FBA Offers:</span>
+                            <span className="font-medium">12</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-green-600">FBM Offers:</span>
+                            <span className="font-medium">8</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total:</span>
+                            <span className="font-medium">20</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Notes */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Notes</h5>
+                        <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 min-h-[80px]">
+                          {item.Notes || 'This is a test note for the LED plant light. Great profit margins and good sales velocity.'}
+                        </div>
+                      </div>
+                      
+                      {/* Files */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-3">Files</h5>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                          <div className="text-blue-500 mb-2">
+                            <Upload className="w-6 h-6 mx-auto" />
+                          </div>
+                          <div className="text-sm text-blue-600 mb-1">Click to upload</div>
+                          <div className="text-xs text-gray-500">or drag and drop</div>
+                          <div className="text-xs text-gray-500">PDF, DOC, XLS, images up to 10MB</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                      <Button size="sm" variant="outline" className="flex-1">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Amazon
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleArchiveItem(item as SourcingItem & { _originalRowIndex: number })}
+                        disabled={archiveItem.isPending}
+                        className="text-orange-600 hover:text-orange-700"
+                        data-testid={`archive-${index}`}
+                      >
+                        <Archive className="w-4 h-4 mr-2" />
+                        Archive
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteItem(item as SourcingItem & { _originalRowIndex: number })}
+                        disabled={deleteItem.isPending}
+                        className="text-red-600 hover:text-red-700"
+                        data-testid={`delete-${index}`}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               );
