@@ -680,6 +680,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint to update Sourcing Method in Google Sheets
+  app.patch('/api/sourcing/sheets/:rowIndex/sourcing-method', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      const { sourcingMethod } = req.body;
+
+      if (isNaN(rowIndex) || rowIndex < 0) {
+        return res.status(400).json({ success: false, message: "Invalid row index" });
+      }
+
+      if (!sourcingMethod || sourcingMethod.trim() === '') {
+        return res.status(400).json({ success: false, message: "Sourcing method value is required" });
+      }
+
+      console.log(`🔄 Updating Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`);
+      
+      const result = await googleSheetsService.updateSourcingMethod(rowIndex, sourcingMethod);
+      
+      res.json({
+        success: true,
+        message: `Sourcing method updated to "${sourcingMethod}" for row ${rowIndex + 1}`,
+        rowIndex,
+        newValue: sourcingMethod
+      });
+    } catch (error) {
+      console.error("❌ Error updating Sourcing Method:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to update Sourcing Method in Google Sheets",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub; // Use authenticated user

@@ -633,6 +633,54 @@ export class GoogleSheetsService {
     }
   }
 
+  async updateSourcingMethod(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Sourcing Method for row ${rowIndex + 2} to "${newValue}"`);
+
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find correct sheet name
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+
+      // Find the correct sheet name
+      let sheetName =
+        sheetNames.find((name: string) =>
+          name.toLowerCase().includes("sourcing"),
+        ) ||
+        sheetNames[0] ||
+        "Sheet1";
+
+      console.log(`🎯 Updating Sourcing Method in sheet: "${sheetName}"`);
+
+      // Sourcing Method is column U (21st column in our A-U range)
+      const columnLetter = "U";
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`; // +2 because row 1 is headers and we're 0-indexed
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[newValue]],
+        },
+      });
+
+      console.log(
+        `✅ Successfully updated Sourcing Method at ${cellRange} to "${newValue}"`,
+      );
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error updating Sourcing Method:", error);
+      throw error;
+    }
+  }
+
   async deleteRow(rowIndex: number): Promise<{ success: boolean }> {
     try {
       console.log(`🗑️ Deleting row ${rowIndex + 2} from Google Sheets`);

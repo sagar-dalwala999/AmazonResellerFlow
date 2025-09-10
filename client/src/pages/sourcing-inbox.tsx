@@ -129,6 +129,41 @@ export default function SourcingInbox() {
     },
   });
 
+  // Update Sourcing Method
+  const updateSourcingMethod = useMutation({
+    mutationFn: async ({ rowIndex, sourcingMethod }: { rowIndex: number; sourcingMethod: string }) => {
+      return apiRequest('PATCH', `/api/sourcing/sheets/${rowIndex}/sourcing-method`, {
+        sourcingMethod
+      });
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Success",
+        description: `Sourcing method updated to "${variables.sourcingMethod}"`
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sourcing/sheets"] });
+    },
+    onError: (error) => {
+      console.error("❌ Error updating sourcing method:", error);
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update sourcing method",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Update Notes
   const updateNotes = useMutation({
     mutationFn: async ({ rowIndex, notes }: { rowIndex: number; notes: string }) => {
@@ -620,7 +655,15 @@ export default function SourcingInbox() {
                           </DropdownMenu>
                           
                           {/* Sourcing Method */}
-                          <Select defaultValue={item['Sourcing Method'] || 'Online Arbitrage'}>
+                          <Select 
+                            defaultValue={item['Sourcing Method'] || 'Online Arbitrage'}
+                            onValueChange={(value) => {
+                              updateSourcingMethod.mutate({ 
+                                rowIndex: (item as any)._originalRowIndex, 
+                                sourcingMethod: value 
+                              });
+                            }}
+                          >
                             <SelectTrigger className="w-40 h-8" data-testid={`sourcing-method-${index}`}>
                               <SelectValue />
                             </SelectTrigger>
