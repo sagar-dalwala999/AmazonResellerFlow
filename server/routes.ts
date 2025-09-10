@@ -488,12 +488,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`📊 Found ${items.length} rows with headers: ${headers.join(', ')}`);
       
-      // Return raw data directly from sheets without processing or saving to database
+      // Get archived items from database to filter them out
+      const archivedItems = await storage.getSourcingItems(true); // showArchived = true
+      const archivedAsins = new Set(archivedItems.map(item => item.asin));
+      
+      // Filter out archived items based on ASIN
+      const filteredItems = items.filter((item: any) => {
+        const asin = item['ASIN']?.trim();
+        return !archivedAsins.has(asin);
+      });
+      
+      console.log(`🔍 Filtered out ${items.length - filteredItems.length} archived items (${archivedAsins.size} total archived)`);
+      
       res.json({
         success: true,
         headers,
-        items,
-        totalRows: items.length,
+        items: filteredItems,
+        totalRows: filteredItems.length,
         lastUpdated: new Date().toISOString()
       });
       

@@ -90,6 +90,7 @@ export default function SourcingInbox() {
       return hasValidData && isNotArchived;
     });
 
+
   // Update Product Review (Winner status)
   const updateProductReview = useMutation({
     mutationFn: async ({ rowIndex, productReview }: { rowIndex: number; productReview: string }) => {
@@ -198,31 +199,52 @@ export default function SourcingInbox() {
       return apiRequest(`/api/sourcing/items/${rowIndex}/archive`, 'POST');
     },
     onMutate: async (rowIndex: number) => {
+      console.log('🎯 OPTIMISTIC ARCHIVE - Starting onMutate for rowIndex:', rowIndex);
+      
       // Cancel outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ["/api/sourcing/sheets"] });
+      console.log('🎯 OPTIMISTIC ARCHIVE - Cancelled queries');
       
       // Snapshot the previous value for rollback
       const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      console.log('🎯 OPTIMISTIC ARCHIVE - Previous data:', previousData?.items?.length, 'items');
       
       // Optimistically update to remove the item being archived
       queryClient.setQueryData(["/api/sourcing/sheets"], (old: any) => {
-        if (!old?.items) return old;
+        console.log('🎯 OPTIMISTIC ARCHIVE - Old data before filter:', old?.items?.length, 'items');
+        if (!old?.items) {
+          console.log('🎯 OPTIMISTIC ARCHIVE - No items in old data, returning old');
+          return old;
+        }
         
-        // Filter out items that would be archived
-        const filteredItems = old.items.filter((item: any, index: number) => {
-          const productName = item['Product Name']?.trim();
-          const asin = item['ASIN']?.trim();
-          const hasValidData = productName && productName !== '' && asin && asin !== '';
-          
-          // Keep items that don't match the row being archived
-          return !hasValidData || index !== rowIndex;
+        // Find the item that is being archived by _originalRowIndex
+        // The rowIndex parameter is the _originalRowIndex from the clicked item
+        const itemToRemove = old.items[rowIndex];
+        console.log('🎯 OPTIMISTIC ARCHIVE - Item to remove at rowIndex', rowIndex, ':', {
+          ASIN: itemToRemove?.ASIN,
+          ProductName: itemToRemove?.['Product Name']?.substring(0, 50) + '...'
         });
+        
+        // Filter out the item at the specific rowIndex
+        const filteredItems = old.items.filter((item: any, index: number) => {
+          const shouldKeep = index !== rowIndex;
+          if (!shouldKeep) {
+            console.log('🎯 OPTIMISTIC ARCHIVE - Removing item at index:', index, 'ASIN:', item?.ASIN);
+          }
+          return shouldKeep;
+        });
+        
+        console.log('🎯 OPTIMISTIC ARCHIVE - Filtered to:', filteredItems.length, 'items (removed 1)');
         
         return {
           ...old,
           items: filteredItems
         };
       });
+      
+      // Verify the update worked
+      const updatedData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      console.log('🎯 OPTIMISTIC ARCHIVE - Updated data after setQueryData:', updatedData?.items?.length, 'items');
       
       return { previousData };
     },
@@ -258,24 +280,6 @@ export default function SourcingInbox() {
         variant: "destructive",
       });
     },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to archive item",
-        variant: "destructive",
-      });
-    },
   });
 
   // Delete item with optimistic updates
@@ -294,14 +298,10 @@ export default function SourcingInbox() {
       queryClient.setQueryData(["/api/sourcing/sheets"], (old: any) => {
         if (!old?.items) return old;
         
-        // Filter out items that would be deleted
+        // Filter out the item at the specific rowIndex
         const filteredItems = old.items.filter((item: any, index: number) => {
-          const productName = item['Product Name']?.trim();
-          const asin = item['ASIN']?.trim();
-          const hasValidData = productName && productName !== '' && asin && asin !== '';
-          
-          // Keep items that don't match the row being deleted
-          return !hasValidData || index !== rowIndex;
+          // Remove the item at the rowIndex being deleted
+          return index !== rowIndex;
         });
         
         return {
@@ -482,92 +482,135 @@ export default function SourcingInbox() {
                   className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow bg-white"
                   data-testid={`product-card-${index}`}
                 >
-                  <CardContent className="p-6">
-                    <div className="flex gap-6">
-                      {/* Product Image */}
-                      <div className="flex-shrink-0">
-                        {item['Image URL'] ? (
-                          <img
-                            src={item['Image URL']}
-                            alt={item['Product Name'] || 'Product'}
-                            className="w-24 h-24 rounded-lg object-cover bg-gray-100"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-24 h-24 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <span className="text-gray-400 text-xs">No Image</span>
+                  <div className="p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                      {/* Left Column - Date/Time and Product Image/Info */}
+                      <div className="lg:col-span-2">
+                        <div className="flex flex-col space-y-3">
+                          {/* Date/Time */}
+                          <div className="text-xs text-gray-500">
+                            <span>{item.Datum || 'Feb 7, 2025'}</span><br />
+                            <span>00:00:00</span>
                           </div>
-                        )}
+                          
+                          {/* Product Image and Basic Info */}
+                          <div className="flex items-start space-x-2">
+                            {item['Image URL'] ? (
+                              <img
+                                src={item['Image URL']}
+                                alt={item['Product Name'] || 'Product'}
+                                className="w-12 h-12 rounded-lg object-cover bg-gray-100"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                                <span className="text-gray-400 text-xs">No Image</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-gray-900 text-xs leading-tight line-clamp-2" data-testid={`product-title-${index}`}>
+                                {item['Product Name'] || 'Unknown Product'}
+                              </h3>
+                              <p className="text-xs text-gray-600 mt-1">{item['Brand'] || 'Unknown Brand'}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Basic Product Data */}
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">ASIN:</span>
+                              <span className="text-gray-900 font-medium" data-testid={`product-asin-${index}`}>{item['ASIN'] || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">EAN:</span>
+                              <span className="text-gray-900" data-testid={`product-ean-${index}`}>{item['EAN Barcode'] || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Main Content */}
-                      <div className="flex-1 space-y-4">
-                        {/* Product Title and Brand */}
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 mb-1" data-testid={`product-title-${index}`}>
-                            {item['Product Name'] || 'Unknown Product'}
-                          </h3>
-                          <p className="text-sm text-gray-600">{item['Brand'] || 'Unknown Brand'}</p>
-                        </div>
-
-                        {/* ASIN and EAN */}
-                        <div className="flex gap-6 text-sm text-gray-600">
-                          <div data-testid={`product-asin-${index}`}>
-                            <span className="font-medium">ASIN:</span> {item['ASIN'] || 'N/A'}
+                      {/* Middle Column - Pricing Information */}
+                      <div className="lg:col-span-3">
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-gray-700">💰 Pricing</h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Buy Price:</span>
+                              <span className="text-blue-600 font-medium">{formatPrice(item['Cost Price'])}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Sell Price:</span>
+                              <span className="text-green-600 font-medium">{formatPrice(item['Sale Price'])}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Profit:</span>
+                              <span className={`font-medium ${profit > 15 ? 'text-green-600' : profit > 5 ? 'text-orange-600' : 'text-red-600'}`}>
+                                {formatPrice(item['Profit'])}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">ROI:</span>
+                              <span className="text-purple-600 font-medium">{roi}</span>
+                            </div>
                           </div>
-                          <div data-testid={`product-ean-${index}`}>
-                            <span className="font-medium">EAN:</span> {item['EAN Barcode'] || 'N/A'}
+                        </div>
+                      </div>
+
+                      {/* Middle Right Column - Performance Data */}
+                      <div className="lg:col-span-3">
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-gray-700">📊 Performance</h4>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Est. Sales:</span>
+                              <span className="text-orange-600 font-medium">{estSales}/mo</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Breakeven:</span>
+                              <span className="text-gray-900 font-medium">{breakeven}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">FBA Sellers:</span>
+                              <span className="text-blue-600 font-medium">{item['FBA Seller Count'] || '0'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">FBM Sellers:</span>
+                              <span className="text-green-600 font-medium">{item['FBM Seller Count'] || '0'}</span>
+                            </div>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Pricing Row */}
-                        <div className="flex flex-wrap gap-3">
-                          <Badge variant="outline" className="text-blue-600 bg-blue-50 border-blue-200">
-                            Buy Price: {formatPrice(item['Cost Price'])}
-                          </Badge>
-                          <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
-                            Sell Price: {formatPrice(item['Sale Price'])}
-                          </Badge>
-                          <Badge variant="outline" className={getProfitColor(item['Profit'])}>
-                            Profit: {formatPrice(item['Profit'])}
-                          </Badge>
-                          <Badge variant="outline" className="text-purple-600 bg-purple-50 border-purple-200">
-                            ROI: {roi}
-                          </Badge>
-                          <Badge variant="outline" className="text-orange-600 bg-orange-50 border-orange-200">
-                            Est. Sales: {estSales}/mo
-                          </Badge>
-                          <Badge variant="outline" className="text-orange-600 bg-orange-50 border-orange-200">
-                            Breakeven: {breakeven}
-                          </Badge>
-                        </div>
+                      {/* Right Column - Status and Actions */}
+                      <div className="lg:col-span-2">
+                        <div className="space-y-3">
+                          {/* Winner Status */}
+                          <div>
+                            {isWinner ? (
+                              <Badge className="bg-green-500 text-white w-full justify-center">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Winner
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => handleMarkAsWinner(index)}
+                                disabled={updateProductReview.isPending}
+                                className="bg-green-500 hover:bg-green-600 text-white w-full"
+                                data-testid={`mark-winner-${index}`}
+                              >
+                                Mark as Winner
+                              </Button>
+                            )}
+                          </div>
 
-                        {/* Status and Method Row */}
-                        <div className="flex items-center gap-4">
-                          {isWinner ? (
-                            <Badge className="bg-green-500 text-white">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Winner
-                            </Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleMarkAsWinner(index)}
-                              disabled={updateProductReview.isPending}
-                              className="bg-green-500 hover:bg-green-600 text-white"
-                              data-testid={`mark-winner-${index}`}
-                            >
-                              Mark as Winner
-                            </Button>
-                          )}
-                          
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">Sourcing Method:</span>
+                          {/* Sourcing Method */}
+                          <div>
                             <Select defaultValue={item['Sourcing Method'] || 'Online Arbitrage'}>
-                              <SelectTrigger className="w-48 h-8">
+                              <SelectTrigger className="w-full h-8">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -579,116 +622,69 @@ export default function SourcingInbox() {
                             </Select>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Stock Levels and Active Offers */}
-                        <div className="grid grid-cols-2 gap-6">
-                          {/* Stock Levels */}
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">📊 Stock Levels</h4>
-                            <div className="grid grid-cols-3 gap-2 text-sm">
-                              <div>
-                                <span className="text-gray-600">Amazon:</span>
-                                <span className="ml-1 font-medium">150</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">FBA:</span>
-                                <span className="ml-1 font-medium">{item['FBA Seller Count'] || '0'}</span>
-                              </div>
-                              <div className="text-green-600">
-                                <span>FBM:</span>
-                                <span className="ml-1 font-medium">{item['FBM Seller Count'] || '0'}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Active Offers */}
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-700 mb-2">🏷️ Active Offers</h4>
-                            <div className="grid grid-cols-3 gap-2 text-sm">
-                              <div>
-                                <span className="text-gray-600">FBA Offers:</span>
-                                <span className="ml-1 font-medium text-blue-600">12</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">FBM Offers:</span>
-                                <span className="ml-1 font-medium">8</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Total:</span>
-                                <span className="ml-1 font-medium">20</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Notes Section */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-medium text-gray-700">Notes</h4>
+                      {/* Far Right Column - Action Buttons */}
+                      <div className="lg:col-span-2">
+                        <div className="flex flex-col gap-2">
+                          {item['Amazon URL'] && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleEditNotes(index, item)}
-                              data-testid={`edit-notes-${index}`}
+                              onClick={() => window.open(item['Amazon URL'], '_blank')}
+                              data-testid={`amazon-link-${index}`}
+                              className="w-full justify-start"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Amazon
                             </Button>
-                          </div>
-                          <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-                            {item.Notes || 'No notes available'}
-                          </div>
-                        </div>
-
-                        {/* Files Upload Section */}
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">📁 Files</h4>
-                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-gray-50 hover:bg-gray-100 transition-colors">
-                            <Upload className="w-5 h-5 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-600">
-                              Click to upload or drag and drop
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              PDF, DOC, XLS, images up to 10MB
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex-shrink-0 flex flex-col gap-2">
-                        {item['Amazon URL'] && (
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => window.open(item['Amazon URL'], '_blank')}
-                            data-testid={`amazon-link-${index}`}
+                            onClick={() => handleEditNotes(index, item)}
+                            data-testid={`edit-notes-${index}`}
+                            className="w-full justify-start text-blue-600 hover:text-blue-700"
                           >
-                            <ExternalLink className="w-4 h-4" />
+                            <Edit3 className="w-4 h-4 mr-2" />
+                            Notes
                           </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleArchiveItem(item)}
-                          disabled={archiveItem.isPending}
-                          className="text-orange-600 hover:text-orange-700"
-                          data-testid={`archive-${index}`}
-                        >
-                          <Archive className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteItem(item)}
-                          disabled={deleteItem.isPending}
-                          className="text-red-600 hover:text-red-700"
-                          data-testid={`delete-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleArchiveItem(item as SourcingItem & { _originalRowIndex: number })}
+                            disabled={archiveItem.isPending}
+                            className="w-full justify-start text-orange-600 hover:text-orange-700"
+                            data-testid={`archive-${index}`}
+                          >
+                            <Archive className="w-4 h-4 mr-2" />
+                            Archive
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteItem(item as SourcingItem & { _originalRowIndex: number })}
+                            disabled={deleteItem.isPending}
+                            className="w-full justify-start text-red-600 hover:text-red-700"
+                            data-testid={`delete-${index}`}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </CardContent>
+
+                    {/* Notes Section - Full Width */}
+                    {item.Notes && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+                          <span className="font-medium text-gray-900">Notes: </span>
+                          {item.Notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </Card>
               );
             })}
