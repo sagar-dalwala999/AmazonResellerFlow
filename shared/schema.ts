@@ -248,6 +248,31 @@ export const sourcingItems = pgTable("sourcing_items", {
 
 export type SourcingItem = typeof sourcingItems.$inferSelect;
 export type InsertSourcingItem = typeof sourcingItems.$inferInsert;
+
+// Google Sheets sourcing item type (different from database schema)
+export interface GoogleSheetsSourcingItem {
+  'Datum': string;
+  'Image URL': string;
+  'Image': string;
+  'Brand': string;
+  'Product Name': string;
+  'ASIN': string;
+  'EAN Barcode': string;
+  'Source URL': string;
+  'Amazon URL': string;
+  'Cost Price': string;
+  'Sale Price': string;
+  'Buy Box (Average Last 90 Days)': string;
+  'Profit': string;
+  'Profit Margin': string;
+  'R.O.I.': string;
+  'Estimated Sales': string;
+  'FBA Seller Count': string;
+  'FBM Seller Count': string;
+  'Product Review': string;
+  'Notes': string;
+  'Sourcing Method': string;
+}
 export type Sourcing = typeof sourcing.$inferSelect;
 export type PurchasingPlan = typeof purchasingPlans.$inferSelect;
 export type Listing = typeof listings.$inferSelect;

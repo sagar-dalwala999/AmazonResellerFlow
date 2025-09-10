@@ -32,17 +32,14 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
 import { isUnauthorizedError } from "@/lib/authUtils";
-
-interface SourcingItem {
-  [key: string]: string;
-}
+import { GoogleSheetsSourcingItem } from "@shared/schema";
 
 export default function SourcingInbox() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [notesModalOpen, setNotesModalOpen] = useState(false);
-  const [editingNotes, setEditingNotes] = useState<{rowIndex: number, item: SourcingItem, currentNotes: string} | null>(null);
+  const [editingNotes, setEditingNotes] = useState<{rowIndex: number, item: GoogleSheetsSourcingItem, currentNotes: string} | null>(null);
   const [notesText, setNotesText] = useState("");
 
 
@@ -70,7 +67,7 @@ export default function SourcingInbox() {
     gcTime: 0,
   });
 
-  const sourcingItems: SourcingItem[] = (sheetsData as any)?.items || [];
+  const sourcingItems: GoogleSheetsSourcingItem[] = (sheetsData as any)?.items || [];
   const archivedItems: any[] = (archivedData as any)?.items || [];
 
   // Get list of archived ASINs for filtering (items that have been explicitly archived)
@@ -79,11 +76,11 @@ export default function SourcingInbox() {
   // Filter out rows where essential fields are blank AND exclude archived items
   // Also keep track of original row indices
   const validItems = sourcingItems
-    .map((item: SourcingItem, originalIndex: number) => ({
+    .map((item: GoogleSheetsSourcingItem, originalIndex: number) => ({
       ...item,
       _originalRowIndex: originalIndex
     }))
-    .filter((item: SourcingItem & { _originalRowIndex: number }) => {
+    .filter((item: GoogleSheetsSourcingItem & { _originalRowIndex: number }) => {
       const productName = item['Product Name']?.trim();
       const asin = item['ASIN']?.trim();
       const hasValidData = productName && productName !== '' && asin && asin !== '';
