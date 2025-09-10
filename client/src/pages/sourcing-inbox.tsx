@@ -17,6 +17,12 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -343,7 +349,7 @@ export default function SourcingInbox() {
     },
   });
 
-  const handleEditNotes = (rowIndex: number, item: SourcingItem) => {
+  const handleEditNotes = (rowIndex: number, item: GoogleSheetsSourcingItem) => {
     setEditingNotes({ rowIndex, item, currentNotes: item.Notes || '' });
     setNotesText(item.Notes || '');
     setNotesModalOpen(true);
@@ -365,12 +371,12 @@ export default function SourcingInbox() {
     });
   };
 
-  const handleArchiveItem = (item: SourcingItem & { _originalRowIndex: number }) => {
+  const handleArchiveItem = (item: GoogleSheetsSourcingItem & { _originalRowIndex: number }) => {
     console.log('📦 Archiving item with ASIN:', item['ASIN'], 'Original row:', item._originalRowIndex);
     archiveItem.mutate(item._originalRowIndex);
   };
 
-  const handleDeleteItem = (item: SourcingItem & { _originalRowIndex: number }) => {
+  const handleDeleteItem = (item: GoogleSheetsSourcingItem & { _originalRowIndex: number }) => {
     if (confirm('Are you sure you want to delete this item? This will remove it from Google Sheets and cannot be undone.')) {
       console.log('🗑️ Deleting item with original row index:', item._originalRowIndex);
       deleteItem.mutate(item._originalRowIndex);
@@ -380,7 +386,7 @@ export default function SourcingInbox() {
   // Auto-sync filtered items to database
   const syncItemsToDatabase = () => {
     if (validItems.length > 0) {
-      const itemsToSave = validItems.map((item: SourcingItem, index: number) => ({
+      const itemsToSave = validItems.map((item: GoogleSheetsSourcingItem & { _originalRowIndex: number }, index: number) => ({
         rowIndex: index,
         datum: item.Datum || '',
         imageUrl: item['Image URL'] || '',
@@ -465,14 +471,14 @@ export default function SourcingInbox() {
 
           {/* Product Cards */}
           <div className="space-y-6">
-            {validItems.map((item: SourcingItem, index: number) => {
+            {validItems.map((item: GoogleSheetsSourcingItem & { _originalRowIndex: number }, index: number) => {
               const isWinner = item['Product Review']?.toLowerCase() === 'winner';
               const buyPrice = parsePrice(item['Cost Price']);
               const sellPrice = parsePrice(item['Sale Price']);
               const profit = parsePrice(item['Profit']);
               const roi = item['R.O.I.'] || '0%';
               const estSales = item['Estimated Sales'] || '0';
-              const breakeven = sellPrice > 0 ? Math.ceil(buyPrice / profit) : 0;
+              const breakeven = profit > 0 ? Math.ceil(buyPrice / profit) : null;
 
               return (
                 <Card 
@@ -482,9 +488,9 @@ export default function SourcingInbox() {
                 >
                   <div className="p-6">
                     {/* Top Section: Product Info + Colored Metric Cards */}
-                    <div className="flex gap-6 mb-6">
+                    <div className="flex flex-col lg:flex-row gap-6 mb-6">
                       {/* Left: Product Information */}
-                      <div className="flex-shrink-0 w-64">
+                      <div className="flex-shrink-0 w-full lg:w-64">
                         {/* Date */}
                         <div className="text-sm text-gray-500 mb-4">
                           {item.Datum || 'Feb 7, 2025'}<br />
@@ -567,36 +573,64 @@ export default function SourcingInbox() {
                           {/* Breakeven - Beige */}
                           <div className="bg-stone-50 border border-stone-200 rounded-lg p-3">
                             <div className="text-xs text-stone-600 font-medium mb-1">Breakeven</div>
-                            <div className="text-sm font-bold text-stone-700">{breakeven} units</div>
+                            <div className="text-sm font-bold text-stone-700">{breakeven ? `${breakeven} units` : 'N/A'}</div>
                             <div className="text-xs text-stone-600">To recover costs</div>
                           </div>
                         </div>
                         
                         {/* Winner Status */}
                         <div className="flex items-center justify-between mb-4">
-                          {isWinner ? (
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
-                                <CheckCircle2 className="w-4 h-4 mr-1" />
-                                Winner
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <div className="flex items-center gap-2 cursor-pointer">
+                                {isWinner ? (
+                                  <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
+                                    <CheckCircle2 className="w-4 h-4 mr-1" />
+                                    Winner
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-gray-600 px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
+                                    Mark Status
+                                  </div>
+                                )}
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
                               </div>
-                              <ChevronDown className="w-4 h-4 text-gray-400" />
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateProductReview.mutate({ rowIndex: (item as any)._originalRowIndex, productReview: 'Winner' })}
-                              className="text-green-600 border-green-300 hover:bg-green-50"
-                            >
-                              Mark as Winner
-                            </Button>
-                          )}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" data-testid={`winner-dropdown-${index}`}>
+                              <DropdownMenuItem 
+                                onClick={() => updateProductReview.mutate({ rowIndex: (item as any)._originalRowIndex, productReview: 'Winner' })}
+                                data-testid={`mark-winner-${index}`}
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                                Mark as Winner
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => updateProductReview.mutate({ rowIndex: (item as any)._originalRowIndex, productReview: 'No Go' })}
+                                data-testid={`mark-no-go-${index}`}
+                              >
+                                Mark as No Go
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => updateProductReview.mutate({ rowIndex: (item as any)._originalRowIndex, productReview: '' })}
+                                data-testid={`clear-status-${index}`}
+                              >
+                                Clear Status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           
-                          <div className="text-sm text-gray-600">
-                            Sourcing Method
-                            <ChevronDown className="w-4 h-4 inline ml-1" />
-                          </div>
+                          {/* Sourcing Method */}
+                          <Select defaultValue={item['Sourcing Method'] || 'Online Arbitrage'}>
+                            <SelectTrigger className="w-40 h-8" data-testid={`sourcing-method-${index}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Online Arbitrage">Online Arbitrage</SelectItem>
+                              <SelectItem value="Retail Arbitrage">Retail Arbitrage</SelectItem>
+                              <SelectItem value="Wholesale">Wholesale</SelectItem>
+                              <SelectItem value="Private Label">Private Label</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
