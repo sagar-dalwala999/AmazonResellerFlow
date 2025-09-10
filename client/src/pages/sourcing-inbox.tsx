@@ -565,10 +565,10 @@ export default function SourcingInbox() {
                           </div>
                           
                           {/* Breakeven - Beige */}
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <div className="text-xs text-amber-600 font-medium mb-1">Breakeven</div>
-                            <div className="text-sm font-bold text-amber-700">{formatPrice(item['Sale Price'])}</div>
-                            <div className="text-xs text-amber-600">360d Low: {formatPrice(item['Cost Price'])}</div>
+                          <div className="bg-stone-50 border border-stone-200 rounded-lg p-3">
+                            <div className="text-xs text-stone-600 font-medium mb-1">Breakeven</div>
+                            <div className="text-sm font-bold text-stone-700">{breakeven} units</div>
+                            <div className="text-xs text-stone-600">To recover costs</div>
                           </div>
                         </div>
                         
