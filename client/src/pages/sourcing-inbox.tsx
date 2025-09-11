@@ -214,7 +214,7 @@ export default function SourcingInbox() {
       rowIndex: number;
       notes: string;
     }) => {
-      return apiRequest("PATCH", `/api/sourcing/sheets/${rowIndex}/notes`, {
+      return apiRequest(`/api/sourcing/sheets/${rowIndex}/notes`, "PATCH", {
         notes,
       });
     },
@@ -1146,11 +1146,25 @@ export default function SourcingInbox() {
                               <h5 className="text-sm font-medium text-gray-700 ">
                                 Notes
                               </h5>
-                              <SquarePen className="w-3 h-3" />
+                              <button
+                                onClick={() =>
+                                  handleEditNotes(
+                                    (item as any)._originalRowIndex,
+                                    item as GoogleSheetsSourcingItem,
+                                  )
+                                }
+                                className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                                data-testid={`edit-notes-${index}`}
+                              >
+                                <SquarePen className="w-3 h-3" />
+                              </button>
                             </div>
                             <div className="text-sm ">
-                              {item.Notes ||
-                                "This is a test note for the LED plant light. Great profit margins and good sales velocity."}
+                              {item.Notes || (
+                                <span className="text-gray-400 italic">
+                                  No notes yet
+                                </span>
+                              )}
                             </div>
                           </div>
 
