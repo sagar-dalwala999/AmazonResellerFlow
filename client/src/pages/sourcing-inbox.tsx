@@ -791,13 +791,13 @@ export default function SourcingInbox() {
                           </div>
                           <div className="lg:grid-cols-3 grid-cols-1 grid gap-3">
                             <div className="border border-gray rounded-md p-3">
-                              <h5 className="text-sm font-medium text-gray-700 mb-3">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">
                                 Stock Levels
                               </h5>
-                              <div className="space-y-2 text-sm">
+                              <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Amazon:</span>
-                                  <span className="font-xs">150</span>
+                                  <span className="font-medium">150</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-blue-600">FBA:</span>
@@ -816,10 +816,10 @@ export default function SourcingInbox() {
 
                             {/* Active Offers */}
                             <div className="border border-gray rounded-md p-3">
-                              <h5 className="text-sm font-medium text-gray-700 mb-3">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">
                                 Active Offers
                               </h5>
-                              <div className="space-y-2 text-sm">
+                              <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span className="text-blue-600">
                                     FBA Offers:
