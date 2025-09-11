@@ -8,6 +8,7 @@ export default function Sidebar() {
   const navigationItems = [
     { href: '/', icon: 'fas fa-tachometer-alt', label: 'Dashboard', roles: ['admin', 'va'] },
     { href: '/sourcing', icon: 'fas fa-inbox', label: 'Sourcing Inbox', roles: ['admin', 'va'] },
+    { href: '/purchasing-inbox', icon: 'fas fa-shopping-bag', label: 'Purchasing Inbox', roles: ['admin', 'va'] },
     { href: '/purchasing', icon: 'fas fa-shopping-cart', label: 'Purchasing Planner', roles: ['admin'] },
     { href: '/listings', icon: 'fas fa-barcode', label: 'Listing Builder', roles: ['admin'] },
     { href: '/performance', icon: 'fas fa-chart-line', label: 'VA Performance', roles: ['admin', 'va'] },
@@ -15,7 +16,7 @@ export default function Sidebar() {
   ];
 
   const filteredItems = navigationItems.filter(item => 
-    !user?.role || item.roles.includes(user.role)
+    !user || !user.role || item.roles.includes(user.role)
   );
 
   return (
@@ -61,7 +62,7 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                {user?.firstName} {user?.lastName}
+                {user?.firstName || ''} {user?.lastName || ''}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {user?.role === 'admin' ? 'Admin' : 'VA'}

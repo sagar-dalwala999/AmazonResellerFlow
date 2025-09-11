@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import SourcingInbox from "@/pages/sourcing-inbox";
+import PurchasingInbox from "@/pages/purchasing-inbox";
 import PurchasingPlanner from "@/pages/purchasing-planner";
 import ListingBuilder from "@/pages/listing-builder";
 import VAPerformance from "@/pages/va-performance";
@@ -36,6 +37,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/sourcing" component={SourcingInbox} />
           <Route path="/sourcing-inbox" component={SourcingInbox} />
+          <Route path="/purchasing-inbox" component={PurchasingInbox} />
           <Route path="/purchasing" component={PurchasingPlanner} />
           <Route path="/listings" component={ListingBuilder} />
           <Route path="/performance" component={VAPerformance} />
