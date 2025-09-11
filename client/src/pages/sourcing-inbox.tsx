@@ -81,10 +81,12 @@ function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: FileUploa
       return response.json();
     },
     enabled: !!rowIndex && rowIndex >= 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent unnecessary refetches
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache longer
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
   });
 
   const files = filesData?.files || [];
-
   const handleFileSelect = (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
     
