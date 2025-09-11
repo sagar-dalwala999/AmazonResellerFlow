@@ -287,7 +287,9 @@ export default function SourcingInbox() {
       console.log("🎯 OPTIMISTIC ARCHIVE - Cancelled queries");
 
       // Snapshot the previous value for rollback
-      const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]) as SheetsData | undefined;
+      const previousData = queryClient.getQueryData([
+        "/api/sourcing/sheets",
+      ]) as SheetsData | undefined;
       console.log(
         "🎯 OPTIMISTIC ARCHIVE - Previous data:",
         previousData?.items?.length,
@@ -349,7 +351,9 @@ export default function SourcingInbox() {
       });
 
       // Verify the update worked
-      const updatedData = queryClient.getQueryData(["/api/sourcing/sheets"]) as SheetsData | undefined;
+      const updatedData = queryClient.getQueryData(["/api/sourcing/sheets"]) as
+        | SheetsData
+        | undefined;
       console.log(
         "🎯 OPTIMISTIC ARCHIVE - Updated data after setQueryData:",
         updatedData?.items?.length,
@@ -777,8 +781,8 @@ export default function SourcingInbox() {
                               </div>
                             </div>
                           </div>
-                          <div className="lg:grid-cols-3 grid-cols-1">
-                            <div>
+                          <div className="lg:grid-cols-3 grid-cols-1 grid gap-3">
+                            <div className="border border-gray rounded-md p-3">
                               <h5 className="text-sm font-medium text-gray-700 mb-3">
                                 Stock Levels
                               </h5>
@@ -803,7 +807,7 @@ export default function SourcingInbox() {
                             </div>
 
                             {/* Active Offers */}
-                            <div>
+                            <div className="border border-gray rounded-md p-3">
                               <h5 className="text-sm font-medium text-gray-700 mb-3">
                                 Active Offers
                               </h5>
@@ -827,6 +831,8 @@ export default function SourcingInbox() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                        <div className="ls:w-[350px] w-full">
                           {/* Winner Status */}
                           <div className="flex items-center justify-between mb-4">
                             <DropdownMenu>
@@ -920,6 +926,52 @@ export default function SourcingInbox() {
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Amazon
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                handleArchiveItem(
+                                  item as GoogleSheetsSourcingItem & {
+                                    _originalRowIndex: number;
+                                  },
+                                )
+                              }
+                              disabled={archiveItem.isPending}
+                              className="text-orange-600 hover:text-orange-700"
+                              data-testid={`archive-${index}`}
+                            >
+                              <Archive className="w-4 h-4 mr-2" />
+                              Archive
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                handleDeleteItem(
+                                  item as GoogleSheetsSourcingItem & {
+                                    _originalRowIndex: number;
+                                  },
+                                )
+                              }
+                              disabled={deleteItem.isPending}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid={`delete-${index}`}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
                       </div>
 
@@ -958,48 +1010,6 @@ export default function SourcingInbox() {
                             </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-3 pt-4 border-t border-gray-100 mt-4">
-                        <Button size="sm" variant="outline" className="flex-1">
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          Amazon
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            handleArchiveItem(
-                              item as GoogleSheetsSourcingItem & {
-                                _originalRowIndex: number;
-                              },
-                            )
-                          }
-                          disabled={archiveItem.isPending}
-                          className="text-orange-600 hover:text-orange-700"
-                          data-testid={`archive-${index}`}
-                        >
-                          <Archive className="w-4 h-4 mr-2" />
-                          Archive
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            handleDeleteItem(
-                              item as GoogleSheetsSourcingItem & {
-                                _originalRowIndex: number;
-                              },
-                            )
-                          }
-                          disabled={deleteItem.isPending}
-                          className="text-red-600 hover:text-red-700"
-                          data-testid={`delete-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </Button>
                       </div>
                     </div>
                   </Card>
