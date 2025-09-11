@@ -35,6 +35,13 @@ import {
   CheckCircle2,
   Archive,
   ChevronDown,
+  SquarePen,
+  Target,
+  Eye,
+  User,
+  Search,
+  Bell,
+  Package,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -162,8 +169,8 @@ export default function SourcingInbox() {
       sourcingMethod: string;
     }) => {
       return apiRequest(
-        "PATCH",
         `/api/sourcing/sheets/${rowIndex}/sourcing-method`,
+        "PATCH",
         {
           sourcingMethod,
         },
@@ -641,7 +648,7 @@ export default function SourcingInbox() {
                   >
                     <div className="p-6">
                       {/* Top Section: Product Info + Colored Metric Cards */}
-                      <div className="flex flex-col lg:flex-row gap-6 mb-6">
+                      <div className="flex flex-col lg:flex-row gap-6">
                         {/* Left: Product Information */}
                         <div className="flex-shrink-0 w-full lg:w-64">
                           {/* Date */}
@@ -832,110 +839,166 @@ export default function SourcingInbox() {
                             </div>
                           </div>
                         </div>
-                        <div className="ls:w-[350px] w-full">
+                        <div className="lg:w-[300px] w-full grid grid-cols-1 gap-2">
                           {/* Winner Status */}
-                          <div className="flex items-center justify-between mb-4">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <div className="flex items-center gap-2 cursor-pointer">
-                                  {isWinner ? (
-                                    <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
-                                      <CheckCircle2 className="w-4 h-4 mr-1" />
-                                      Winner
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center text-gray-600 px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
-                                      Mark Status
-                                    </div>
-                                  )}
-                                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                                </div>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="start"
-                                data-testid={`winner-dropdown-${index}`}
-                              >
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateProductReview.mutate({
-                                      rowIndex: (item as any)._originalRowIndex,
-                                      productReview: "Winner",
-                                    })
-                                  }
-                                  data-testid={`mark-winner-${index}`}
-                                >
-                                  <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                                  Mark as Winner
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateProductReview.mutate({
-                                      rowIndex: (item as any)._originalRowIndex,
-                                      productReview: "No Go",
-                                    })
-                                  }
-                                  data-testid={`mark-no-go-${index}`}
-                                >
-                                  Mark as No Go
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    updateProductReview.mutate({
-                                      rowIndex: (item as any)._originalRowIndex,
-                                      productReview: "",
-                                    })
-                                  }
-                                  data-testid={`clear-status-${index}`}
-                                >
-                                  Clear Status
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
 
-                            {/* Sourcing Method */}
-                            <Select
-                              defaultValue={
-                                item["Sourcing Method"] || "Online Arbitrage"
-                              }
-                              onValueChange={(value) => {
-                                updateSourcingMethod.mutate({
-                                  rowIndex: (item as any)._originalRowIndex,
-                                  sourcingMethod: value,
-                                });
-                              }}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <div className="flex items-center gap-2 cursor-pointer">
+                                {isWinner ? (
+                                  <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
+                                    <CheckCircle2 className="w-4 h-4 mr-1" />
+                                    Winner
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-gray-600 px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
+                                    Mark Status
+                                  </div>
+                                )}
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              data-testid={`winner-dropdown-${index}`}
                             >
-                              <SelectTrigger
-                                className="w-40 h-8"
-                                data-testid={`sourcing-method-${index}`}
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateProductReview.mutate({
+                                    rowIndex: (item as any)._originalRowIndex,
+                                    productReview: "Winner",
+                                  })
+                                }
+                                data-testid={`mark-winner-${index}`}
                               >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Online Arbitrage">
-                                  Online Arbitrage
-                                </SelectItem>
-                                <SelectItem value="Retail Arbitrage">
-                                  Retail Arbitrage
-                                </SelectItem>
-                                <SelectItem value="Wholesale">
+                                <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                                Mark as Winner
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateProductReview.mutate({
+                                    rowIndex: (item as any)._originalRowIndex,
+                                    productReview: "No Go",
+                                  })
+                                }
+                                data-testid={`mark-no-go-${index}`}
+                              >
+                                Mark as No Go
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateProductReview.mutate({
+                                    rowIndex: (item as any)._originalRowIndex,
+                                    productReview: "",
+                                  })
+                                }
+                                data-testid={`clear-status-${index}`}
+                              >
+                                Clear Status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {/* Sourcing Method */}
+                          <Select
+                            defaultValue={
+                              item["Sourcing Method"] || "Online Arbitrage"
+                            }
+                            onValueChange={(value) => {
+                              updateSourcingMethod.mutate({
+                                rowIndex: (item as any)._originalRowIndex,
+                                sourcingMethod: value,
+                              });
+                            }}
+                          >
+                            <SelectTrigger
+                              className="w-full h-8"
+                              data-testid={`sourcing-method-${index}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Profitpath">
+                                <div className="flex items-center gap-2">
+                                  <Target className="w-4 h-4" />
+                                  Profitpath
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Storefront Stalking">
+                                <div className="flex items-center gap-2">
+                                  <Eye className="w-4 h-4" />
+                                  Storefront Stalking
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Manual">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4" />
+                                  Manual
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Idealo Scraper">
+                                <div className="flex items-center gap-2">
+                                  <Search className="w-4 h-4" />
+                                  Idealo Scraper
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Qogita price alert">
+                                <div className="flex items-center gap-2">
+                                  <Bell className="w-4 h-4" />
+                                  Qogita price alert
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Wholesale">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-4 h-4" />
                                   Wholesale
-                                </SelectItem>
-                                <SelectItem value="Private Label">
-                                  Private Label
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Idealo notifier">
+                                <div className="flex items-center gap-2">
+                                  <Bell className="w-4 h-4" />
+                                  Idealo notifier
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {/* Notes */}
+                          <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px]">
+                            <div className="flex justify-between mb-2">
+                              <h5 className="text-sm font-medium text-gray-700 ">
+                                Notes
+                              </h5>
+                              <SquarePen className="w-3 h-3" />
+                            </div>
+                            <div className="text-sm ">
+                              {item.Notes ||
+                                "This is a test note for the LED plant light. Great profit margins and good sales velocity."}
+                            </div>
+                          </div>
+
+                          {/* Files */}
+                          <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px] text-xs">
+                            <h5 className="text-sm font-medium text-gray-700 mb-3">
+                              Files
+                            </h5>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                              <div className="text-blue-500 mb-2">
+                                <Upload className="w-6 h-4 mx-auto" />
+                              </div>
+                              <div className="text-xs text-gray-500 ">
+                                <span className="text-xs text-blue-600 mb-1">
+                                  Click to upload
+                                </span>
+                                or drag and drop <br/>
+                                PDF, DOC, XLS, images up to 10MB
+                              </div>
+                            </div>
                           </div>
 
                           {/* Action Buttons */}
-                          <div className="flex gap-3 pt-4 border-t border-gray-100 mt-4">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Amazon
+                          <div className="flex justify-end gap-1 pt-2 border-t border-gray-100 mt-2">
+                            <Button size="sm" variant="ghost" className="w-6 h-6">
+                              <ExternalLink size={24} />
                             </Button>
                             <Button
                               size="sm"
@@ -948,11 +1011,10 @@ export default function SourcingInbox() {
                                 )
                               }
                               disabled={archiveItem.isPending}
-                              className="text-orange-600 hover:text-orange-700"
+                              className="text-orange-600 hover:text-orange-700 w-6 h-6"
                               data-testid={`archive-${index}`}
                             >
-                              <Archive className="w-4 h-4 mr-2" />
-                              Archive
+                              <Archive size={24} />
                             </Button>
                             <Button
                               size="sm"
@@ -965,49 +1027,11 @@ export default function SourcingInbox() {
                                 )
                               }
                               disabled={deleteItem.isPending}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 hover:text-red-700 w-6 h-6"
                               data-testid={`delete-${index}`}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
+                              <Trash2  size={24} />
                             </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Section: Stock Levels, Active Offers, Notes, Files */}
-                      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 pt-4 border-t border-gray-100">
-                        {/* Stock Levels */}
-
-                        {/* Notes */}
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-700 mb-3">
-                            Notes
-                          </h5>
-                          <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 min-h-[80px]">
-                            {item.Notes ||
-                              "This is a test note for the LED plant light. Great profit margins and good sales velocity."}
-                          </div>
-                        </div>
-
-                        {/* Files */}
-                        <div>
-                          <h5 className="text-sm font-medium text-gray-700 mb-3">
-                            Files
-                          </h5>
-                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                            <div className="text-blue-500 mb-2">
-                              <Upload className="w-6 h-6 mx-auto" />
-                            </div>
-                            <div className="text-sm text-blue-600 mb-1">
-                              Click to upload
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              or drag and drop
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              PDF, DOC, XLS, images up to 10MB
-                            </div>
                           </div>
                         </div>
                       </div>
