@@ -39,7 +39,13 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { GoogleSheetsSourcingItem } from "@shared/schema";
+import { GoogleSheetsSourcingItem, SourcingItem } from "@shared/schema";
+
+interface SheetsData {
+  items?: GoogleSheetsSourcingItem[];
+  headers?: string[];
+  success?: boolean;
+}
 
 export default function SourcingInbox() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -281,7 +287,7 @@ export default function SourcingInbox() {
       console.log("🎯 OPTIMISTIC ARCHIVE - Cancelled queries");
 
       // Snapshot the previous value for rollback
-      const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      const previousData = queryClient.getQueryData(["/api/sourcing/sheets"]) as SheetsData | undefined;
       console.log(
         "🎯 OPTIMISTIC ARCHIVE - Previous data:",
         previousData?.items?.length,
@@ -343,7 +349,7 @@ export default function SourcingInbox() {
       });
 
       // Verify the update worked
-      const updatedData = queryClient.getQueryData(["/api/sourcing/sheets"]);
+      const updatedData = queryClient.getQueryData(["/api/sourcing/sheets"]) as SheetsData | undefined;
       console.log(
         "🎯 OPTIMISTIC ARCHIVE - Updated data after setQueryData:",
         updatedData?.items?.length,
@@ -965,7 +971,7 @@ export default function SourcingInbox() {
                           variant="ghost"
                           onClick={() =>
                             handleArchiveItem(
-                              item as SourcingItem & {
+                              item as GoogleSheetsSourcingItem & {
                                 _originalRowIndex: number;
                               },
                             )
@@ -982,7 +988,7 @@ export default function SourcingInbox() {
                           variant="ghost"
                           onClick={() =>
                             handleDeleteItem(
-                              item as SourcingItem & {
+                              item as GoogleSheetsSourcingItem & {
                                 _originalRowIndex: number;
                               },
                             )
