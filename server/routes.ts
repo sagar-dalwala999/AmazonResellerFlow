@@ -958,19 +958,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get files for a specific row
-  app.get('/api/sourcing/files/:rowIndex', isAuthenticated, async (req, res) => {
+  app.get('/api/sourcing/files/:rowIndex', isAuthenticated, async (req: any, res) => {
     try {
       const rowIndex = parseInt(req.params.rowIndex);
+      const userId = req.user.claims.sub;
       
       if (isNaN(rowIndex)) {
         return res.status(400).json({ success: false, message: 'Invalid row index' });
       }
 
+      // Get all files for this row
       const files = await storage.getFilesByRowIndex(rowIndex);
+      
+      // Filter files to only include those uploaded by the current user
+      const userFiles = files.filter(file => file.uploadedBy === userId);
 
       res.json({
         success: true,
-        files,
+        files: userFiles,
       });
     } catch (error) {
       console.error('❌ Error fetching files:', error);
@@ -983,13 +988,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Download file
-  app.get('/api/sourcing/files/download/:fileId', isAuthenticated, async (req, res) => {
+  app.get('/api/sourcing/files/download/:fileId', isAuthenticated, async (req: any, res) => {
     try {
       const fileId = req.params.fileId;
+      const userId = req.user.claims.sub;
       const file = await storage.getFileById(fileId);
 
       if (!file) {
         return res.status(404).json({ success: false, message: 'File not found' });
+      }
+
+      // Check if user owns this file
+      if (file.uploadedBy !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
       }
 
       if (!fs.existsSync(file.filePath)) {
@@ -1010,22 +1021,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete file
-  app.delete('/api/sourcing/files/:fileId', isAuthenticated, async (req, res) => {
+  app.delete('/api/sourcing/files/:fileId', isAuthenticated, async (req: any, res) => {
     try {
       const fileId = req.params.fileId;
+      const userId = req.user.claims.sub;
       const file = await storage.getFileById(fileId);
 
       if (!file) {
         return res.status(404).json({ success: false, message: 'File not found' });
       }
 
-      // Delete file from disk
-      if (fs.existsSync(file.filePath)) {
-        fs.unlinkSync(file.filePath);
+      // Check if user owns this file
+      if (file.uploadedBy !== userId) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
       }
 
-      // Delete file record from database
+      // Delete file record from database first
       await storage.deleteFile(fileId);
+
+      // Delete file from disk (safe to do after DB delete)
+      try {
+        if (fs.existsSync(file.filePath)) {
+          fs.unlinkSync(file.filePath);
+        }
+      } catch (diskError) {
+        // Log but don't fail the request - file record is already deleted
+        console.warn('⚠️ Warning: Failed to delete file from disk:', diskError);
+      }
 
       res.json({
         success: true,

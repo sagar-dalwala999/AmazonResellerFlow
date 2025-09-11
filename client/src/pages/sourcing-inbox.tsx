@@ -43,6 +43,10 @@ import {
   Bell,
   Package,
   X,
+  FileText,
+  Download,
+  Image as ImageIcon,
+  Paperclip,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -53,6 +57,176 @@ interface SheetsData {
   items?: GoogleSheetsSourcingItem[];
   headers?: string[];
   success?: boolean;
+}
+
+interface FileUploadSectionProps {
+  rowIndex: number;
+  asin: string;
+  uploadFile: any;
+  deleteFile: any;
+}
+
+function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: FileUploadSectionProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fetch files for this row
+  const { data: filesData } = useQuery({
+    queryKey: ['/api/sourcing/files', rowIndex],
+    queryFn: async () => {
+      const response = await fetch(`/api/sourcing/files/${rowIndex}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
+      return response.json();
+    },
+    enabled: !!rowIndex && rowIndex >= 0,
+  });
+
+  const files = filesData?.files || [];
+
+  const handleFileSelect = (selectedFiles: FileList | null) => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    
+    const file = selectedFiles[0];
+    if (file) {
+      uploadFile.mutate({ rowIndex, asin, file });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const droppedFiles = e.dataTransfer.files;
+    handleFileSelect(droppedFiles);
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
+    if (mimeType.includes('pdf')) return <FileText className="w-4 h-4" />;
+    return <Paperclip className="w-4 h-4" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const isImage = (mimeType: string) => mimeType.startsWith('image/');
+
+  return (
+    <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px] text-xs">
+      <h5 className="text-sm font-medium text-gray-700 mb-3">Files</h5>
+      
+      {files.length === 0 ? (
+        // Upload area when no files exist
+        <div
+          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+            isDragOver 
+              ? 'border-blue-400 bg-blue-50' 
+              : 'border-gray-300 hover:border-blue-400'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="text-blue-500 mb-2">
+            <Upload className="w-6 h-4 mx-auto" />
+          </div>
+          <div className="text-xs text-gray-500">
+            <span className="text-xs text-blue-600 mb-1">Click to upload</span>
+            <br />
+            or drag and drop
+            <br />
+            PDF, DOC, XLS, images up to 10MB
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+            onChange={(e) => handleFileSelect(e.target.files)}
+          />
+        </div>
+      ) : (
+        // File list when files exist
+        <div className="space-y-2">
+          {files.map((file: any) => (
+            <div key={file.id} className="flex items-center justify-between p-2 bg-white rounded border">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {getFileIcon(file.mimeType)}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">
+                    {file.originalName}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatFileSize(file.fileSize)}
+                  </div>
+                </div>
+                {isImage(file.mimeType) && (
+                  <img
+                    src={`/api/sourcing/files/download/${file.id}`}
+                    alt={file.originalName}
+                    className="w-8 h-8 rounded object-cover"
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0"
+                  onClick={() => window.open(`/api/sourcing/files/download/${file.id}`, '_blank')}
+                  data-testid={`download-file-${file.id}`}
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                  onClick={() => deleteFile.mutate(file.id)}
+                  data-testid={`delete-file-${file.id}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          
+          {/* Add more files button */}
+          <button
+            className="w-full p-2 border-2 border-dashed border-gray-300 rounded text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            data-testid={`add-more-files-${rowIndex}`}
+          >
+            + Add more files
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+            onChange={(e) => handleFileSelect(e.target.files)}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function SourcingInbox() {
@@ -242,6 +416,64 @@ export default function SourcingInbox() {
       toast({
         title: "Error",
         description: "Failed to update notes",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // File upload mutations
+  const uploadFile = useMutation({
+    mutationFn: async ({ rowIndex, asin, file }: { rowIndex: number; asin: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('rowIndex', rowIndex.toString());
+      formData.append('asin', asin);
+
+      const response = await fetch('/api/sourcing/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Success", 
+        description: "File uploaded successfully"
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/sourcing/files', variables.rowIndex] });
+    },
+    onError: (error: any) => {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to upload file",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteFile = useMutation({
+    mutationFn: async (fileId: string) => {
+      return apiRequest(`/api/sourcing/files/${fileId}`, "DELETE");
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "File deleted successfully"
+      });
+      // Need to invalidate all file queries since we don't know which row this file belongs to
+      queryClient.invalidateQueries({ queryKey: ['/api/sourcing/files'] });
+    },
+    onError: (error: any) => {
+      console.error('Error deleting file:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete file",
         variant: "destructive",
       });
     },
@@ -1169,23 +1401,12 @@ export default function SourcingInbox() {
                           </div>
 
                           {/* Files */}
-                          <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px] text-xs">
-                            <h5 className="text-sm font-medium text-gray-700 mb-3">
-                              Files
-                            </h5>
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                              <div className="text-blue-500 mb-2">
-                                <Upload className="w-6 h-4 mx-auto" />
-                              </div>
-                              <div className="text-xs text-gray-500 ">
-                                <span className="text-xs text-blue-600 mb-1">
-                                  Click to upload
-                                </span>
-                                or drag and drop <br/>
-                                PDF, DOC, XLS, images up to 10MB
-                              </div>
-                            </div>
-                          </div>
+                          <FileUploadSection 
+                            rowIndex={(item as any)._originalRowIndex}
+                            asin={item.ASIN || ''}
+                            uploadFile={uploadFile}
+                            deleteFile={deleteFile}
+                          />
 
                           {/* Action Buttons */}
                           <div className="flex justify-end gap-1 pt-2 border-t border-gray-100 mt-2">
