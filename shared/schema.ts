@@ -132,6 +132,21 @@ export const activityLog = pgTable("activity_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Files table for sourcing item attachments
+export const sourcingFiles = pgTable("sourcing_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rowIndex: integer("row_index").notNull(),
+  asin: varchar("asin").notNull(),
+  originalName: varchar("original_name").notNull(),
+  fileName: varchar("file_name").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  uploadedBy: varchar("uploaded_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   sourcingSubmitted: many(sourcing, { relationName: "submittedSourcing" }),
@@ -213,6 +228,12 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
   createdAt: true,
 });
 
+export const insertSourcingFileSchema = createInsertSchema(sourcingFiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -248,6 +269,8 @@ export const sourcingItems = pgTable("sourcing_items", {
 
 export type SourcingItem = typeof sourcingItems.$inferSelect;
 export type InsertSourcingItem = typeof sourcingItems.$inferInsert;
+export type SourcingFile = typeof sourcingFiles.$inferSelect;
+export type InsertSourcingFile = z.infer<typeof insertSourcingFileSchema>;
 
 // Google Sheets sourcing item type (different from database schema)
 export interface GoogleSheetsSourcingItem {

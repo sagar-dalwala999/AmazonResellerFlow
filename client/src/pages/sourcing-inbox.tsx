@@ -1189,7 +1189,7 @@ export default function SourcingInbox() {
 
                           {/* Action Buttons */}
                           <div className="flex justify-end gap-1 pt-2 border-t border-gray-100 mt-2">
-                            <Button size="sm" variant="ghost" className="w-6 h-6">
+                            <Button size="sm" variant="ghost" className="w-6 h-6" >
                               <ExternalLink size={24} />
                             </Button>
                             <Button

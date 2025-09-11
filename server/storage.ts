@@ -2,6 +2,7 @@ import {
   users,
   sourcing,
   sourcingItems,
+  sourcingFiles,
   purchasingPlans,
   listings,
   activityLog,
@@ -11,6 +12,8 @@ import {
   type SourcingWithRelations,
   type SourcingItem,
   type InsertSourcingItem,
+  type SourcingFile,
+  type InsertSourcingFile,
   type PurchasingPlan,
   type PurchasingPlanWithRelations,
   type Listing,
@@ -66,6 +69,12 @@ export interface IStorage {
   archiveSourcingItem(rowIndex: number): Promise<void>;
   deleteSourcingItem(rowIndex: number): Promise<void>;
   upsertSourcingItems(items: InsertSourcingItem[]): Promise<void>;
+
+  // File operations for sourcing items
+  saveFileInfo(fileInfo: InsertSourcingFile): Promise<SourcingFile>;
+  getFilesByRowIndex(rowIndex: number): Promise<SourcingFile[]>;
+  getFileById(fileId: string): Promise<SourcingFile | undefined>;
+  deleteFile(fileId: string): Promise<void>;
 
   // Dashboard data
   getKpiData(): Promise<{
@@ -522,6 +531,25 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(sourcingItems)
       .where(eq(sourcingItems.rowIndex, rowIndex));
+  }
+
+  // File operations for sourcing items
+  async saveFileInfo(fileInfo: InsertSourcingFile): Promise<SourcingFile> {
+    const [file] = await db.insert(sourcingFiles).values(fileInfo).returning();
+    return file;
+  }
+
+  async getFilesByRowIndex(rowIndex: number): Promise<SourcingFile[]> {
+    return await db.select().from(sourcingFiles).where(eq(sourcingFiles.rowIndex, rowIndex));
+  }
+
+  async getFileById(fileId: string): Promise<SourcingFile | undefined> {
+    const [file] = await db.select().from(sourcingFiles).where(eq(sourcingFiles.id, fileId));
+    return file;
+  }
+
+  async deleteFile(fileId: string): Promise<void> {
+    await db.delete(sourcingFiles).where(eq(sourcingFiles.id, fileId));
   }
 
   async upsertSourcingItems(items: InsertSourcingItem[]): Promise<void> {

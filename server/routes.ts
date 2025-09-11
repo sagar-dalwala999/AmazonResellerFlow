@@ -1,12 +1,48 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema } from "@shared/schema";
+import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema, insertSourcingFileSchema } from "@shared/schema";
 import { googleSheetsService, parseMoneySmart, parsePercentMaybe, parseNumericValue, readSourcingSheet } from "./googleSheetsService";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure multer for file uploads
+  const uploadStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = 'uploads/sourcing';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const extension = path.extname(file.originalname);
+      cb(null, file.fieldname + '-' + uniqueSuffix + extension);
+    }
+  });
+
+  const upload = multer({
+    storage: uploadStorage,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error('Invalid file type'));
+      }
+    }
+  });
+
   // Auth middleware
   await setupAuth(app);
 
@@ -876,6 +912,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, 1000);
     } catch (error) {
       res.status(500).json({ message: "Keepa API call failed" });
+    }
+  });
+
+  // File upload endpoints for sourcing items
+  app.post('/api/sourcing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file uploaded' });
+      }
+
+      const { rowIndex, asin } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!rowIndex || !asin) {
+        return res.status(400).json({ success: false, message: 'Row index and ASIN are required' });
+      }
+
+      const fileInfo = {
+        rowIndex: parseInt(rowIndex),
+        asin,
+        originalName: req.file.originalname,
+        fileName: req.file.filename,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        uploadedBy: userId,
+      };
+
+      const savedFile = await storage.saveFileInfo(fileInfo);
+
+      res.json({
+        success: true,
+        message: 'File uploaded successfully',
+        file: savedFile,
+      });
+    } catch (error) {
+      console.error('❌ Error uploading file:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload file',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Get files for a specific row
+  app.get('/api/sourcing/files/:rowIndex', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      
+      if (isNaN(rowIndex)) {
+        return res.status(400).json({ success: false, message: 'Invalid row index' });
+      }
+
+      const files = await storage.getFilesByRowIndex(rowIndex);
+
+      res.json({
+        success: true,
+        files,
+      });
+    } catch (error) {
+      console.error('❌ Error fetching files:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch files',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Download file
+  app.get('/api/sourcing/files/download/:fileId', isAuthenticated, async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const file = await storage.getFileById(fileId);
+
+      if (!file) {
+        return res.status(404).json({ success: false, message: 'File not found' });
+      }
+
+      if (!fs.existsSync(file.filePath)) {
+        return res.status(404).json({ success: false, message: 'File not found on disk' });
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+      res.setHeader('Content-Type', file.mimeType);
+      res.sendFile(path.resolve(file.filePath));
+    } catch (error) {
+      console.error('❌ Error downloading file:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to download file',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Delete file
+  app.delete('/api/sourcing/files/:fileId', isAuthenticated, async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const file = await storage.getFileById(fileId);
+
+      if (!file) {
+        return res.status(404).json({ success: false, message: 'File not found' });
+      }
+
+      // Delete file from disk
+      if (fs.existsSync(file.filePath)) {
+        fs.unlinkSync(file.filePath);
+      }
+
+      // Delete file record from database
+      await storage.deleteFile(fileId);
+
+      res.json({
+        success: true,
+        message: 'File deleted successfully',
+      });
+    } catch (error) {
+      console.error('❌ Error deleting file:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete file',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   });
 
