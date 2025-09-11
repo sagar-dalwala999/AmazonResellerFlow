@@ -693,23 +693,59 @@ export default function SourcingInbox() {
 
                           {/* ASIN and EAN */}
                           <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span className="text-gray-600">ASIN</span>
-                              <span
-                                className="text-gray-900 font-medium"
-                                data-testid={`product-asin-${index}`}
-                              >
-                                {item["ASIN"] || "N/A"}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="text-gray-900 font-medium"
+                                  data-testid={`product-asin-${index}`}
+                                >
+                                  {item["ASIN"] || "N/A"}
+                                </span>
+                                {item["ASIN"] && item["ASIN"] !== "N/A" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-4 w-4 p-0 text-gray-500 hover:text-gray-700"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item["ASIN"]);
+                                      toast({
+                                        description: `ASIN ${item["ASIN"]} copied to clipboard`,
+                                      });
+                                    }}
+                                    data-testid={`copy-asin-${index}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span className="text-gray-600">EAN</span>
-                              <span
-                                className="text-gray-900"
-                                data-testid={`product-ean-${index}`}
-                              >
-                                {item["EAN Barcode"] || "N/A"}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="text-gray-900"
+                                  data-testid={`product-ean-${index}`}
+                                >
+                                  {item["EAN Barcode"] || "N/A"}
+                                </span>
+                                {item["EAN Barcode"] && item["EAN Barcode"] !== "N/A" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-4 w-4 p-0 text-gray-500 hover:text-gray-700"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item["EAN Barcode"]);
+                                      toast({
+                                        description: `EAN ${item["EAN Barcode"]} copied to clipboard`,
+                                      });
+                                    }}
+                                    data-testid={`copy-ean-${index}`}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
