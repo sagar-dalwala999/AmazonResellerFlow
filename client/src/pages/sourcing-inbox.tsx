@@ -42,6 +42,7 @@ import {
   Search,
   Bell,
   Package,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/sidebar";
@@ -796,7 +797,7 @@ export default function SourcingInbox() {
                               <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Amazon:</span>
-                                  <span className="font-medium">150</span>
+                                  <span className="font-xs">150</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-blue-600">FBA:</span>
@@ -840,64 +841,205 @@ export default function SourcingInbox() {
                           </div>
                         </div>
                         <div className="lg:w-[300px] w-full grid grid-cols-1 gap-2">
-                          {/* Winner Status */}
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <div className="flex items-center gap-2 cursor-pointer">
-                                {isWinner ? (
-                                  <div className="flex items-center bg-green-500 text-white px-3 py-1 rounded-md text-sm">
-                                    <CheckCircle2 className="w-4 h-4 mr-1" />
-                                    Winner
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center text-gray-600 px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">
-                                    Mark Status
-                                  </div>
-                                )}
-                                <ChevronDown className="w-4 h-4 text-gray-400" />
-                              </div>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="start"
-                              data-testid={`winner-dropdown-${index}`}
+                          {/* Product Status */}
+                          <Select
+                            defaultValue={item["Product Review"] || ""}
+                            onValueChange={(value) => {
+                              updateProductReview.mutate({
+                                rowIndex: (item as any)._originalRowIndex,
+                                productReview: value,
+                              });
+                            }}
+                          >
+                            <SelectTrigger
+                              className="w-full h-8"
+                              data-testid={`product-status-${index}`}
                             >
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  updateProductReview.mutate({
-                                    rowIndex: (item as any)._originalRowIndex,
-                                    productReview: "Winner",
-                                  })
-                                }
-                                data-testid={`mark-winner-${index}`}
-                              >
-                                <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                                Mark as Winner
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  updateProductReview.mutate({
-                                    rowIndex: (item as any)._originalRowIndex,
-                                    productReview: "No Go",
-                                  })
-                                }
-                                data-testid={`mark-no-go-${index}`}
-                              >
-                                Mark as No Go
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  updateProductReview.mutate({
-                                    rowIndex: (item as any)._originalRowIndex,
-                                    productReview: "",
-                                  })
-                                }
-                                data-testid={`clear-status-${index}`}
-                              >
-                                Clear Status
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              <SelectValue placeholder="Mark Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Winner">
+                                <div className="flex items-center gap-2 text-green-600">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  Winner
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Low Margin">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Low Margin
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Low ROI">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Low ROI
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Less than 50 sales a month">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Less than 50 sales a month
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Different product">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Different product
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Amazon active">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Amazon active
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Recent price increase">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Recent price increase
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Already submitted">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Already submitted
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Not enough profit for sale volume">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Not enough profit for sale volume
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Buy price changed">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Buy price changed
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Instable Price">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Instable Price
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Already selling">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Already selling
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Hazmat">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Hazmat
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Bad store">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Bad store
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Restricted Brand">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Restricted Brand
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Too heavy weight">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Too heavy weight
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Potential IP claims">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Potential IP claims
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Private Label">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Private Label
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="No Source URL">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  No Source URL
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Gated">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Gated
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Too many offers">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Too many offers
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Low stock">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Low stock
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Out of stock">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Out of stock
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="FBA Stock > 3 months sales">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  FBA Stock &gt; 3 months sales
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Transparency Code needed">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Transparency Code needed
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Buybox suppressed">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Buybox suppressed
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Different Amount">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Different Amount
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Brand active">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Brand active
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="Review again">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  Review again
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="High MOV">
+                                <div className="flex items-center gap-2 text-red-500">
+                                  <X className="w-4 h-4" />
+                                  High MOV
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
 
                           {/* Sourcing Method */}
                           <Select
