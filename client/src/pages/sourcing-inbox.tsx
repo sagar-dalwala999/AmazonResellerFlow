@@ -126,8 +126,8 @@ export default function SourcingInbox() {
       productReview: string;
     }) => {
       return apiRequest(
-        "PATCH",
         `/api/sourcing/sheets/${rowIndex}/product-review`,
+        "PATCH",
         {
           productReview,
         },
