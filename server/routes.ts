@@ -843,25 +843,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Items must be an array' });
       }
 
-      // Clean European currency format from all items before saving
+      // Normalize sheet headers to internal keys and clean numeric values
+      const headerMapping = {
+        'ASIN': 'asin', 'Brand': 'brand', 'Product Name': 'productName',
+        'Cost Price': 'costPrice', 'Sale Price': 'salePrice', 'Profit': 'profit',
+        'Profit Margin': 'profitMargin', 'R.O.I.': 'roi',
+        'Buy Box (Average Last 90 Days)': 'buyBoxAverage90Days',
+        'Revenue': 'revenue', 'Spent': 'spent', 'Transfer': 'transfer', 'wo VAT': 'woVat',
+        'Estimated Sales': 'estimatedSales', 'FBA Seller Count': 'fbaSellerCount',
+        'FBM Seller Count': 'fbmSellerCount', 'EAN Barcode': 'eanBarcode',
+        'Image URL': 'imageUrl', 'Source URL': 'sourceUrl', 'Amazon URL': 'amazonUrl',
+        'Notes': 'notes', 'Sourcing Method': 'sourcingMethod', 'Status': 'status',
+        'Datum': 'datum'
+      };
+
       const cleanedItems = items.map(item => {
-        const cleanedItem = { ...item };
+        const cleanedItem: any = {};
         
-        // Clean currency values for numeric fields
-        const numericFields = ['costPrice', 'salePrice', 'profit', 'profitMargin', 'roi', 'buyBoxAverage', 'revenue', 'spent', 'transfer', 'woVat'];
-        
-        numericFields.forEach(field => {
-          if (cleanedItem[field] && typeof cleanedItem[field] === 'string') {
-            // Remove €, spaces, and convert comma decimal separator to dot
-            cleanedItem[field] = cleanedItem[field]
-              .replace(/[€$£¥₹]/g, "")
-              .replace(/\s/g, "")
-              .replace(/,/g, ".");
+        // Normalize keys and clean values
+        Object.entries(item).forEach(([sheetHeader, rawValue]) => {
+          const internalKey = headerMapping[sheetHeader as keyof typeof headerMapping] || sheetHeader;
+          
+          if (typeof rawValue === 'string' && rawValue.trim() === '') {
+            cleanedItem[internalKey] = null;
+            return;
+          }
+          
+          // Money fields - clean currency and parse
+          if (['costPrice', 'salePrice', 'profit', 'buyBoxAverage90Days', 'revenue', 'spent', 'transfer', 'woVat'].includes(internalKey)) {
+            const cleaned = typeof rawValue === 'string' 
+              ? rawValue.replace(/[€$£¥₹%]/g, "").replace(/\s/g, "").replace(/,/g, ".").trim()
+              : rawValue;
+            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
+          }
+          // Percentage fields - remove % symbol
+          else if (['profitMargin', 'roi'].includes(internalKey)) {
+            const cleaned = typeof rawValue === 'string'
+              ? rawValue.replace(/%/g, "").replace(/\s/g, "").replace(/,/g, ".").trim()
+              : rawValue;
+            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
+          }
+          // Numeric count fields
+          else if (['estimatedSales', 'fbaSellerCount', 'fbmSellerCount'].includes(internalKey)) {
+            const cleaned = typeof rawValue === 'string'
+              ? rawValue.replace(/\s/g, "").replace(/,/g, ".").trim()
+              : rawValue;
+            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
+          }
+          // Regular fields
+          else {
+            cleanedItem[internalKey] = rawValue;
           }
         });
         
         return cleanedItem;
       });
+
+      // Debug: Log a sample cleaned item to verify transformation
+      if (cleanedItems.length > 0) {
+        console.log("🔍 DEBUG: Sample cleaned item:", JSON.stringify(cleanedItems[0], null, 2));
+      }
 
       await storage.savePurchasingItems(cleanedItems, userId);
       res.json({ success: true, saved: cleanedItems.length });
