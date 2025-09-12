@@ -648,6 +648,226 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Purchasing Sheet Update Endpoints
+  app.post('/api/purchasing/update-product-review', isAuthenticated, async (req, res) => {
+    try {
+      const { rowIndex, productReview } = req.body;
+
+      if (typeof rowIndex !== 'number' || rowIndex < 0) {
+        return res.status(400).json({ message: "Invalid row index" });
+      }
+
+      if (!productReview || productReview.trim() === '') {
+        return res.status(400).json({ message: "Product review is required" });
+      }
+
+      console.log(`🔄 Updating Purchasing Product Review for row ${rowIndex} to "${productReview}"`);
+      
+      const result = await googleSheetsService.updatePurchasingProductReview(rowIndex, productReview);
+      
+      res.json({
+        success: true,
+        message: `Product review updated to "${productReview}"`,
+        data: result
+      });
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Product Review:", error);
+      res.status(500).json({ 
+        message: "Failed to update product review"
+      });
+    }
+  });
+
+  app.post('/api/purchasing/update-sourcing-method', isAuthenticated, async (req, res) => {
+    try {
+      const { rowIndex, sourcingMethod } = req.body;
+
+      if (typeof rowIndex !== 'number' || rowIndex < 0) {
+        return res.status(400).json({ message: "Invalid row index" });
+      }
+
+      if (!sourcingMethod || sourcingMethod.trim() === '') {
+        return res.status(400).json({ message: "Sourcing method is required" });
+      }
+
+      console.log(`🔄 Updating Purchasing Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`);
+      
+      const result = await googleSheetsService.updatePurchasingSourcingMethod(rowIndex, sourcingMethod);
+      
+      res.json({
+        success: true,
+        message: `Sourcing method updated to "${sourcingMethod}"`,
+        data: result
+      });
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Sourcing Method:", error);
+      res.status(500).json({ 
+        message: "Failed to update sourcing method"
+      });
+    }
+  });
+
+  app.post('/api/purchasing/update-notes', isAuthenticated, async (req, res) => {
+    try {
+      const { rowIndex, notes } = req.body;
+
+      if (typeof rowIndex !== 'number' || rowIndex < 0) {
+        return res.status(400).json({ message: "Invalid row index" });
+      }
+
+      console.log(`🔄 Updating Purchasing Notes for row ${rowIndex}`);
+      
+      const result = await googleSheetsService.updatePurchasingNotes(rowIndex, notes || '');
+      
+      res.json({
+        success: true,
+        message: "Notes updated successfully",
+        data: result
+      });
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Notes:", error);
+      res.status(500).json({ 
+        message: "Failed to update notes"
+      });
+    }
+  });
+
+  // Purchasing Files Endpoints
+  app.post('/api/purchasing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { rowIndex, asin } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!rowIndex || !asin) {
+        return res.status(400).json({ message: 'Row index and ASIN are required' });
+      }
+
+      const fileData = {
+        userId,
+        rowIndex: parseInt(rowIndex),
+        asin,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        filePath: req.file.path
+      };
+
+      const file = await storage.createPurchasingFile(fileData);
+      res.json({ success: true, file });
+
+    } catch (error) {
+      console.error('Error uploading purchasing file:', error);
+      res.status(500).json({ message: 'Failed to upload file' });
+    }
+  });
+
+  app.get('/api/purchasing/files/:rowIndex', isAuthenticated, async (req, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      const files = await storage.getPurchasingFilesByRow(rowIndex);
+      res.json({ files });
+    } catch (error) {
+      console.error('Error fetching purchasing files:', error);
+      res.status(500).json({ message: 'Failed to fetch files' });
+    }
+  });
+
+  app.delete('/api/purchasing/files/:fileId', isAuthenticated, async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      await storage.deletePurchasingFile(fileId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting purchasing file:', error);
+      res.status(500).json({ message: 'Failed to delete file' });
+    }
+  });
+
+  app.get('/api/purchasing/files/download/:fileId', async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const file = await storage.getPurchasingFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+
+      res.download(file.filePath, file.originalName);
+    } catch (error) {
+      console.error('Error downloading purchasing file:', error);
+      res.status(500).json({ message: 'Failed to download file' });
+    }
+  });
+
+  // Purchasing Items Endpoints
+  app.post('/api/purchasing/items/save', isAuthenticated, async (req: any, res) => {
+    try {
+      const items = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!Array.isArray(items)) {
+        return res.status(400).json({ message: 'Items must be an array' });
+      }
+
+      await storage.savePurchasingItems(items, userId);
+      res.json({ success: true, saved: items.length });
+
+    } catch (error) {
+      console.error('Error saving purchasing items:', error);
+      res.status(500).json({ message: 'Failed to save items' });
+    }
+  });
+
+  app.post('/api/purchasing/items/:rowIndex/archive', isAuthenticated, async (req: any, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      const userId = req.user.claims.sub;
+
+      await storage.archivePurchasingItem(rowIndex, userId);
+      res.json({ success: true });
+
+    } catch (error) {
+      console.error('Error archiving purchasing item:', error);
+      res.status(500).json({ message: 'Failed to archive item' });
+    }
+  });
+
+  app.delete('/api/purchasing/items/:rowIndex', isAuthenticated, async (req: any, res) => {
+    try {
+      const rowIndex = parseInt(req.params.rowIndex);
+      
+      await storage.deletePurchasingItem(rowIndex);
+      res.json({ success: true });
+
+    } catch (error) {
+      console.error('Error deleting purchasing item:', error);
+      res.status(500).json({ message: 'Failed to delete item' });
+    }
+  });
+
+  app.get('/api/purchasing/items', isAuthenticated, async (req, res) => {
+    try {
+      const { archived } = req.query;
+      const options: any = {};
+      
+      if (archived === 'true') {
+        options.archived = true;
+      }
+
+      const items = await storage.getPurchasingItems(options);
+      res.json(items);
+
+    } catch (error) {
+      console.error('Error fetching purchasing items:', error);
+      res.status(500).json({ message: 'Failed to fetch items' });
+    }
+  });
+
   // New endpoint to update Product Review in Google Sheets
   app.patch('/api/sourcing/sheets/:rowIndex/product-review', isAuthenticated, async (req, res) => {
     try {

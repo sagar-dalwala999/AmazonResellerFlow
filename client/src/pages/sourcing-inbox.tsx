@@ -66,7 +66,7 @@ interface FileUploadSectionProps {
   deleteFile: any;
 }
 
-function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: FileUploadSectionProps) {
+export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: FileUploadSectionProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 

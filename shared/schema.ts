@@ -267,10 +267,71 @@ export const sourcingItems = pgTable("sourcing_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Purchasing Items table for database storage with archive functionality
+export const purchasingItems = pgTable("purchasing_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  originalRowIndex: integer("original_row_index").notNull(), // Google Sheets row index
+  datum: varchar("datum"),
+  imageUrl: varchar("image_url"),
+  brand: varchar("brand"),
+  productName: varchar("product_name").notNull(),
+  asin: varchar("asin").notNull(),
+  eanBarcode: varchar("ean_barcode"),
+  sourceUrl: varchar("source_url"),
+  amazonUrl: varchar("amazon_url"),
+  costPrice: varchar("cost_price"),
+  salePrice: varchar("sale_price"),
+  buyBoxAverage: varchar("buy_box_average"),
+  profit: varchar("profit"),
+  profitMargin: varchar("profit_margin"),
+  roi: varchar("roi"),
+  estimatedSales: varchar("estimated_sales"),
+  fbaSellerCount: varchar("fba_seller_count"),
+  fbmSellerCount: varchar("fbm_seller_count"),
+  productReview: varchar("product_review"),
+  notes: varchar("notes"),
+  sourcingMethod: varchar("sourcing_method"),
+  archived: boolean("archived").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Purchasing Files table
+export const purchasingFiles = pgTable("purchasing_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rowIndex: integer("row_index").notNull(),
+  asin: varchar("asin").notNull(),
+  originalName: varchar("original_name").notNull(),
+  filename: varchar("filename").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  uploadedBy: varchar("uploaded_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPurchasingItemSchema = createInsertSchema(purchasingItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPurchasingFileSchema = createInsertSchema(purchasingFiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type SourcingItem = typeof sourcingItems.$inferSelect;
 export type InsertSourcingItem = typeof sourcingItems.$inferInsert;
 export type SourcingFile = typeof sourcingFiles.$inferSelect;
 export type InsertSourcingFile = z.infer<typeof insertSourcingFileSchema>;
+
+export type PurchasingItem = typeof purchasingItems.$inferSelect;
+export type InsertPurchasingItem = typeof purchasingItems.$inferInsert;
+export type PurchasingFile = typeof purchasingFiles.$inferSelect;
+export type InsertPurchasingFile = z.infer<typeof insertPurchasingFileSchema>;
 
 // Google Sheets sourcing item type (different from database schema)
 export interface GoogleSheetsSourcingItem {

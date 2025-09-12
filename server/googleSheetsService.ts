@@ -820,6 +820,124 @@ export class GoogleSheetsService {
       throw error;
     }
   }
+
+  // Purchasing Sheet Update Methods
+  async updatePurchasingProductReview(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Purchasing Product Review for row ${rowIndex + 2} to "${newValue}"`);
+
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find purchasing sheet
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+
+      // Find the purchasing sheet
+      let sheetName = sheetNames.find((name: string) => name.toLowerCase().includes("purchasing")) || "Purchasing";
+
+      console.log(`🎯 Updating Purchasing Product Review in sheet: "${sheetName}"`);
+
+      // Product Review is column S (19th column)
+      const columnLetter = "S";
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`;
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[newValue]],
+        },
+      });
+
+      console.log(`✅ Successfully updated Purchasing Product Review at ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Product Review:", error);
+      throw error;
+    }
+  }
+
+  async updatePurchasingSourcingMethod(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Purchasing Sourcing Method for row ${rowIndex + 2} to "${newValue}"`);
+
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find purchasing sheet
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+
+      // Find the purchasing sheet
+      let sheetName = sheetNames.find((name: string) => name.toLowerCase().includes("purchasing")) || "Purchasing";
+
+      console.log(`🎯 Updating Purchasing Sourcing Method in sheet: "${sheetName}"`);
+
+      // Sourcing Method is column U (21st column)
+      const columnLetter = "U";
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`;
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[newValue]],
+        },
+      });
+
+      console.log(`✅ Successfully updated Purchasing Sourcing Method at ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Sourcing Method:", error);
+      throw error;
+    }
+  }
+
+  async updatePurchasingNotes(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Purchasing Notes for row ${rowIndex + 2} to "${newValue}"`);
+
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find purchasing sheet
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+
+      // Find the purchasing sheet
+      let sheetName = sheetNames.find((name: string) => name.toLowerCase().includes("purchasing")) || "Purchasing";
+
+      console.log(`🎯 Updating Purchasing Notes in sheet: "${sheetName}"`);
+
+      // Notes is column T (20th column)
+      const columnLetter = "T";
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`;
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[newValue]],
+        },
+      });
+
+      console.log(`✅ Successfully updated Purchasing Notes at ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Notes:", error);
+      throw error;
+    }
+  }
 }
 
 // Export utility functions for external use

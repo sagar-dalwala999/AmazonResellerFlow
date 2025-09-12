@@ -14,6 +14,12 @@ import {
   type InsertSourcingItem,
   type SourcingFile,
   type InsertSourcingFile,
+  type PurchasingItem,
+  type InsertPurchasingItem,
+  type PurchasingFile,
+  type InsertPurchasingFile,
+  purchasingItems,
+  purchasingFiles,
   type PurchasingPlan,
   type PurchasingPlanWithRelations,
   type Listing,
@@ -75,6 +81,18 @@ export interface IStorage {
   getFilesByRowIndex(rowIndex: number): Promise<SourcingFile[]>;
   getFileById(fileId: string): Promise<SourcingFile | undefined>;
   deleteFile(fileId: string): Promise<void>;
+
+  // Purchasing Items operations (database storage with archive)
+  savePurchasingItems(items: InsertPurchasingItem[], userId: string): Promise<void>;
+  getPurchasingItems(options?: { archived?: boolean }): Promise<PurchasingItem[]>;
+  archivePurchasingItem(rowIndex: number, userId: string): Promise<void>;
+  deletePurchasingItem(rowIndex: number): Promise<void>;
+
+  // File operations for purchasing items
+  createPurchasingFile(fileInfo: InsertPurchasingFile): Promise<PurchasingFile>;
+  getPurchasingFilesByRow(rowIndex: number): Promise<PurchasingFile[]>;
+  getPurchasingFile(fileId: string): Promise<PurchasingFile | undefined>;
+  deletePurchasingFile(fileId: string): Promise<void>;
 
   // Dashboard data
   getKpiData(): Promise<{
@@ -569,6 +587,68 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log(`✅ Successfully upserted ${items.length} items`);
+  }
+
+  // Purchasing Items operations (database storage with archive)
+  async savePurchasingItems(items: InsertPurchasingItem[], userId: string): Promise<void> {
+    if (items.length === 0) return;
+    
+    console.log(`💾 Saving ${items.length} purchasing items to database`);
+    
+    // Clear existing non-archived entries and insert new ones
+    await db.delete(purchasingItems).where(eq(purchasingItems.archived, false));
+    
+    for (const item of items) {
+      try {
+        await db.insert(purchasingItems).values(item);
+      } catch (error) {
+        console.error(`Error inserting purchasing item with ASIN ${item.asin}:`, error);
+      }
+    }
+    
+    console.log(`✅ Successfully saved ${items.length} purchasing items`);
+  }
+
+  async getPurchasingItems(options?: { archived?: boolean }): Promise<PurchasingItem[]> {
+    const query = db.select().from(purchasingItems);
+    
+    if (options?.archived !== undefined) {
+      query.where(eq(purchasingItems.archived, options.archived));
+    }
+    
+    return await query.orderBy(desc(purchasingItems.createdAt));
+  }
+
+  async archivePurchasingItem(rowIndex: number, userId: string): Promise<void> {
+    await db
+      .update(purchasingItems)
+      .set({ archived: true, updatedAt: new Date() })
+      .where(eq(purchasingItems.originalRowIndex, rowIndex));
+  }
+
+  async deletePurchasingItem(rowIndex: number): Promise<void> {
+    await db
+      .delete(purchasingItems)
+      .where(eq(purchasingItems.originalRowIndex, rowIndex));
+  }
+
+  // File operations for purchasing items
+  async createPurchasingFile(fileInfo: InsertPurchasingFile): Promise<PurchasingFile> {
+    const [file] = await db.insert(purchasingFiles).values(fileInfo).returning();
+    return file;
+  }
+
+  async getPurchasingFilesByRow(rowIndex: number): Promise<PurchasingFile[]> {
+    return await db.select().from(purchasingFiles).where(eq(purchasingFiles.rowIndex, rowIndex));
+  }
+
+  async getPurchasingFile(fileId: string): Promise<PurchasingFile | undefined> {
+    const [file] = await db.select().from(purchasingFiles).where(eq(purchasingFiles.id, fileId));
+    return file;
+  }
+
+  async deletePurchasingFile(fileId: string): Promise<void> {
+    await db.delete(purchasingFiles).where(eq(purchasingFiles.id, fileId));
   }
 }
 
