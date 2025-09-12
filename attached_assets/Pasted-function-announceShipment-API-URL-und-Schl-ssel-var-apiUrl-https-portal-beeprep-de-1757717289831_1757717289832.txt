@@ -1,0 +1,118 @@
+function announceShipment() {
+  // API-URL und Schlüssel
+  var apiUrl = "https://portal.beeprep.de/api"; // Basis-URL
+  var apiKey = "jtc_9SkcbPilrJzIzV4vdKn5FLMAtwhTyboTmwwj2f0bXKPsaHIh35Wc9FcJ"; // Neuer API-Key
+  var merchantId = 16184; // Merchant-ID
+
+  // Google Sheets Informationen
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Purchasing");
+  var range = sheet.getRange("Y:Y"); // Spalte Y, wo die Checkboxen sind
+  var values = range.getValues();
+
+  // Durchlaufe die ausgewählten Produkte
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][0] === true) { // Überprüfe, ob die Checkbox ausgewählt ist
+      var productName = sheet.getRange(i + 1, 1).getValue(); // Annahme: Produktname ist in Spalte A
+      var merchantSku = "SKU-" + Math.floor(Math.random() * 100000); // Generiere eine zufällige SKU
+
+      // Schritt 1: Erstelle ein Inventory-Item
+      var inventoryPayload = {
+        "merchant_sku": merchantSku,
+        "title": productName,
+        "condition": "new"
+      };
+
+      var inventoryOptions = {
+        "method": "post",
+        "contentType": "application/json",
+        "headers": {
+          "Authorization": "Bearer " + apiKey,
+          "Accept": "application/json",
+          "X-Selected-Client-Id": merchantId // Merchant-ID im Header
+        },
+        "payload": JSON.stringify(inventoryPayload),
+        "muteHttpExceptions": true // Zeigt die vollständige Fehlermeldung an
+      };
+
+      try {
+        var inventoryResponse = UrlFetchApp.fetch(apiUrl + "/inventory", inventoryOptions);
+        var inventoryResponseCode = inventoryResponse.getResponseCode();
+        var inventoryResponseText = inventoryResponse.getContentText();
+
+        if (inventoryResponseCode === 201) { // 201 = Erfolgreich erstellt
+          Logger.log("Inventory-Item erfolgreich erstellt: " + inventoryResponseText);
+
+          // Extrahiere die Item-ID aus der Antwort
+          var itemId = JSON.parse(inventoryResponseText).item_details.id;
+
+          // Schritt 2: Erstelle eine Sendung (Authentifizierung über Request-Parameter)
+          var shipmentPayload = {
+            "name": productName,
+            "notes": "Automatisch erstellte Sendung via Google Apps Script"
+          };
+
+          var shipmentOptions = {
+            "method": "post",
+            "contentType": "application/json",
+            "headers": {
+              "Accept": "application/json",
+              "X-Selected-Client-Id": merchantId // Merchant-ID im Header
+            },
+            "payload": JSON.stringify(shipmentPayload),
+            "muteHttpExceptions": true // Zeigt die vollständige Fehlermeldung an
+          };
+
+          // Füge den API-Key als Request-Parameter hinzu
+          var shipmentUrl = apiUrl + "/shipments/inbound?api_token=" + apiKey;
+
+          var shipmentResponse = UrlFetchApp.fetch(shipmentUrl, shipmentOptions);
+          var shipmentResponseCode = shipmentResponse.getResponseCode();
+          var shipmentResponseText = shipmentResponse.getContentText();
+
+          if (shipmentResponseCode === 201) { // 201 = Erfolgreich erstellt
+            Logger.log("Sendung erfolgreich erstellt: " + shipmentResponseText);
+
+            // Extrahiere die Sendungs-ID aus der Antwort
+            var shipmentId = JSON.parse(shipmentResponseText).id;
+
+            // Schritt 3: Füge das Item zur Sendung hinzu
+            var addItemPayload = {
+              "item_id": itemId,
+              "quantity": 1 // Annahme: Menge = 1
+            };
+
+            var addItemOptions = {
+              "method": "post",
+              "contentType": "application/json",
+              "headers": {
+                "Accept": "application/json",
+                "X-Selected-Client-Id": merchantId // Merchant-ID im Header
+              },
+              "payload": JSON.stringify(addItemPayload),
+              "muteHttpExceptions": true // Zeigt die vollständige Fehlermeldung an
+            };
+
+            // Füge den API-Key als Request-Parameter hinzu
+            var addItemUrl = apiUrl + "/shipments/inbound/" + shipmentId + "/add-item?api_token=" + apiKey;
+
+            var addItemResponse = UrlFetchApp.fetch(addItemUrl, addItemOptions);
+            var addItemResponseCode = addItemResponse.getResponseCode();
+            var addItemResponseText = addItemResponse.getContentText();
+
+            if (addItemResponseCode === 200) { // 200 = Erfolgreich hinzugefügt
+              Logger.log("Item erfolgreich zur Sendung hinzugefügt: " + addItemResponseText);
+            } else {
+              Logger.log("Fehler beim Hinzufügen des Items zur Sendung: " + addItemResponseCode + " - " + addItemResponseText);
+            }
+          } else {
+            Logger.log("Fehler bei der Sendungserstellung: " + shipmentResponseCode + " - " + shipmentResponseText);
+          }
+        } else {
+          Logger.log("Fehler bei der Inventory-Item-Erstellung: " + inventoryResponseCode + " - " + inventoryResponseText);
+        }
+      } catch (e) {
+        Logger.log("Fehler bei der Anfrage: " + e.toString());
+      }
+    }
+  }
+}
