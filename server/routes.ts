@@ -761,6 +761,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // === PrepMyBusiness API Routes ===
+  
+  // Create shipment via PrepMyBusiness API
+  app.post('/api/purchasing/create-shipment', isAuthenticated, async (req, res) => {
+    try {
+      const { asin, productName, quantity } = req.body;
+      
+      if (!asin || !productName || !quantity) {
+        return res.status(400).json({ 
+          message: 'ASIN, product name, and quantity are required' 
+        });
+      }
+
+      const apiUrl = "https://portal.beeprep.de/api";
+      const apiKey = process.env.PREPMYBUSINESS_API_KEY;
+      const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
+
+      if (!apiKey || !merchantId) {
+        return res.status(500).json({ 
+          message: 'PrepMyBusiness API credentials not configured' 
+        });
+      }
+
+      // Create shipment payload
+      const shipmentPayload = {
+        merchant_id: parseInt(merchantId),
+        product_asin: asin,
+        product_name: productName,
+        quantity: parseInt(quantity),
+        // Add any other required fields based on PrepMyBusiness API documentation
+      };
+
+      console.log('🚛 Creating PrepMyBusiness shipment:', shipmentPayload);
+
+      // Make API call to PrepMyBusiness
+      const response = await fetch(`${apiUrl}/shipments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'X-Merchant-ID': merchantId,
+        },
+        body: JSON.stringify(shipmentPayload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ PrepMyBusiness API error:', response.status, errorText);
+        return res.status(response.status).json({ 
+          message: `PrepMyBusiness API error: ${response.status}`,
+          details: errorText 
+        });
+      }
+
+      const shipmentResult = await response.json();
+      console.log('✅ Shipment created successfully:', shipmentResult);
+
+      res.json({ 
+        success: true, 
+        shipment: shipmentResult,
+        message: 'Shipment created successfully via PrepMyBusiness'
+      });
+
+    } catch (error) {
+      console.error('Error creating PrepMyBusiness shipment:', error);
+      res.status(500).json({ 
+        message: 'Failed to create shipment',
+        error: error.message 
+      });
+    }
+  });
+
   // Purchasing Files Endpoints
   app.post('/api/purchasing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {

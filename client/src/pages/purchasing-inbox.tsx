@@ -29,13 +29,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   ExternalLink,
-  Edit3,
+  Box,
   Upload,
   Trash2,
   Copy,
   CheckCircle2,
   Archive,
-  ChevronDown,
+  Truck,
   SquarePen,
   Target,
   Eye,
@@ -220,7 +220,7 @@ export default function PurchasingInbox() {
     item: GoogleSheetsSourcingItem;
     notes: string;
   } | null>(null);
-  
+  const lastSavedRef = React.useRef<string>("");
   // State to track purchased amounts for each row
   const [purchasedAmounts, setPurchasedAmounts] = useState<Record<number, number>>({});
 
@@ -504,14 +504,50 @@ export default function PurchasingInbox() {
     },
   });
 
+  // Create shipment mutation
+  const createShipment = useMutation({
+    mutationFn: async ({
+      asin,
+      productName,
+      quantity,
+    }: {
+      asin: string;
+      productName: string;
+      quantity: number;
+    }) => {
+      return apiRequest("/api/purchasing/create-shipment", "POST", {
+        asin,
+        productName,
+        quantity,
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        description: "Shipment created successfully via PrepMyBusiness",
+      });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          variant: "destructive",
+          description: "Session expired. Please log in again.",
+        });
+        window.location.href = "/api/login";
+        return;
+      }
+
+      toast({
+        variant: "destructive",
+        description: error.message || "Failed to create shipment",
+      });
+    },
+  });
+
   // Auto-save items to database when data changes
   React.useEffect(() => {
     if (validItems.length > 0 && !isLoading && user) {
-      console.log("🔄 Auto-syncing items to database...");
-
-      // Transform items to match database schema
       const itemsToSave = validItems
-        .filter((item) => !(item as any)._isArchived) // Don't save archived items again
+        .filter((item) => !(item as any)._isArchived)
         .map((item: any) => ({
           originalRowIndex: item._originalRowIndex,
           productName: item["Product Name"] || "",
@@ -536,8 +572,11 @@ export default function PurchasingInbox() {
           datum: item["Datum"] || "",
         }));
 
-      if (itemsToSave.length > 0) {
+    const serialized = JSON.stringify(itemsToSave);
+      if (lastSavedRef.current !== serialized) {
+        console.log("🔄 Auto-syncing items to database...");
         saveItemsToDatabase.mutate(itemsToSave);
+        lastSavedRef.current = serialized;
       }
     }
   }, [validItems, isLoading, user]);
@@ -1006,7 +1045,7 @@ export default function PurchasingInbox() {
                               </div>
                               
                               {/* Calculated Purchase Fields */}
-                              <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 mt-4">
+                              <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 my-4">
                                 <h5 className="text-sm font-semibold text-blue-800 mb-3">
                                   Purchase Calculations
                                 </h5>
@@ -1324,60 +1363,87 @@ export default function PurchasingInbox() {
                               {/* Action Buttons */}
                               <div className="flex gap-2">
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   className="flex-1"
                                   onClick={() => handleArchiveItem(item)}
                                   disabled={archiveItem.isPending}
                                   data-testid={`archive-${index}`}
                                 >
-                                  <Archive className="w-4 h-4 mr-1" />
-                                  Archive
+                                  <Archive className="w-4 h-4" />
                                 </Button>
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
                                   className="flex-1 text-red-600 hover:text-red-700"
                                   onClick={() => handleDeleteItem(item)}
                                   disabled={deleteItem.isPending}
                                   data-testid={`delete-${index}`}
                                 >
-                                  <Trash2 className="w-4 h-4 mr-1" />
-                                  Delete
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
+
+                                {/* Source URL */}
+                                {item["Source URL"] && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 justify-start"
+                                    onClick={() =>
+                                      window.open(item["Source URL"], "_blank")
+                                    }
+                                    data-testid={`source-link-${index}`}
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </Button>
+                                )}
+
+                                {/* Amazon URL */}
+                                {item["Amazon URL"] && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 justify-start"
+                                    onClick={() =>
+                                      window.open(item["Amazon URL"], "_blank")
+                                    }
+                                    data-testid={`amazon-link-${index}`}
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
 
-                              {/* Source URL */}
-                              {item["Source URL"] && (
+                              <div className="flex gap-2">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="w-full justify-start"
-                                  onClick={() =>
-                                    window.open(item["Source URL"], "_blank")
-                                  }
-                                  data-testid={`source-link-${index}`}
+                                  className="text-xs bg-amber-600 hover:bg-amber-500  text-white hover:text-white"
+                                  onClick={() => {}}
+                                  data-testid={`delete-${index}`}
                                 >
-                                  <ExternalLink className="w-4 h-4 mr-2" />
-                                  View Source
+                                  <Box className="w-4 h-4" />
+                                  Amzaon Listing
                                 </Button>
-                              )}
-
-                              {/* Amazon URL */}
-                              {item["Amazon URL"] && (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="w-full justify-start"
-                                  onClick={() =>
-                                    window.open(item["Amazon URL"], "_blank")
-                                  }
-                                  data-testid={`amazon-link-${index}`}
+                                  className="text-xs bg-green-600 hover:bg-green-500 text-white hover:text-white"
+                                  onClick={() => {
+                                    const purchasedAmount = purchasedAmounts[(item as any)._originalRowIndex] || 1;
+                                    createShipment.mutate({
+                                      asin: item["ASIN"] || "",
+                                      productName: item["Product Name"] || "",
+                                      quantity: purchasedAmount,
+                                    });
+                                  }}
+                                  disabled={createShipment.isPending}
+                                  data-testid={`create-shipment-${index}`}
                                 >
-                                  <ExternalLink className="w-4 h-4 mr-2" />
-                                  View on Amazon
+                                  <Truck className="w-4 h-4" />
+                                  {createShipment.isPending ? "Creating..." : "Create Shipment"}
                                 </Button>
-                              )}
+                              </div>
                             </div>
                           </div>
                         </div>
