@@ -843,69 +843,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Items must be an array' });
       }
 
-      // Normalize sheet headers to internal keys and clean numeric values
-      const headerMapping = {
-        'ASIN': 'asin', 'Brand': 'brand', 'Product Name': 'productName',
-        'Cost Price': 'costPrice', 'Sale Price': 'salePrice', 'Profit': 'profit',
-        'Profit Margin': 'profitMargin', 'R.O.I.': 'roi',
-        'Buy Box (Average Last 90 Days)': 'buyBoxAverage90Days',
-        'Revenue': 'revenue', 'Spent': 'spent', 'Transfer': 'transfer', 'wo VAT': 'woVat',
-        'Estimated Sales': 'estimatedSales', 'FBA Seller Count': 'fbaSellerCount',
-        'FBM Seller Count': 'fbmSellerCount', 'EAN Barcode': 'eanBarcode',
-        'Image URL': 'imageUrl', 'Source URL': 'sourceUrl', 'Amazon URL': 'amazonUrl',
-        'Notes': 'notes', 'Sourcing Method': 'sourcingMethod', 'Status': 'status',
-        'Datum': 'datum'
+      // Sanitize all numeric fields to prevent database parsing errors
+      const sanitizeNumericValue = (value: any): string | null => {
+        if (value === null || value === undefined) return null;
+        
+        const str = String(value).trim();
+        if (str === '') return null;
+        
+        // Remove currency symbols, percentages, spaces
+        let cleaned = str.replace(/[€$£¥₹%]/g, "").replace(/\s/g, "");
+        
+        // Convert European decimal comma to dot
+        cleaned = cleaned.replace(/,/g, ".");
+        
+        return cleaned || null;
       };
 
-      const cleanedItems = items.map(item => {
-        const cleanedItem: any = {};
-        
-        // Normalize keys and clean values
-        Object.entries(item).forEach(([sheetHeader, rawValue]) => {
-          const internalKey = headerMapping[sheetHeader as keyof typeof headerMapping] || sheetHeader;
+      let failedCount = 0;
+      const failedItems: any[] = [];
+      
+      const cleanedItems = items.map((item, index) => {
+        try {
+          const cleanedItem: any = { ...item };
           
-          if (typeof rawValue === 'string' && rawValue.trim() === '') {
-            cleanedItem[internalKey] = null;
-            return;
-          }
+          // Sanitize all potentially numeric fields
+          const numericFields = ['costPrice', 'salePrice', 'profit', 'profitMargin', 'roi', 
+                                'buyBoxAverage90Days', 'revenue', 'spent', 'transfer', 'woVat',
+                                'estimatedSales', 'fbaSellerCount', 'fbmSellerCount',
+                                'Cost Price', 'Sale Price', 'Profit', 'Profit Margin', 'R.O.I.',
+                                'Buy Box (Average Last 90 Days)', 'Revenue', 'Spent', 'Transfer', 'wo VAT',
+                                'Estimated Sales', 'FBA Seller Count', 'FBM Seller Count'];
           
-          // Money fields - clean currency and parse
-          if (['costPrice', 'salePrice', 'profit', 'buyBoxAverage90Days', 'revenue', 'spent', 'transfer', 'woVat'].includes(internalKey)) {
-            const cleaned = typeof rawValue === 'string' 
-              ? rawValue.replace(/[€$£¥₹%]/g, "").replace(/\s/g, "").replace(/,/g, ".").trim()
-              : rawValue;
-            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
-          }
-          // Percentage fields - remove % symbol
-          else if (['profitMargin', 'roi'].includes(internalKey)) {
-            const cleaned = typeof rawValue === 'string'
-              ? rawValue.replace(/%/g, "").replace(/\s/g, "").replace(/,/g, ".").trim()
-              : rawValue;
-            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
-          }
-          // Numeric count fields
-          else if (['estimatedSales', 'fbaSellerCount', 'fbmSellerCount'].includes(internalKey)) {
-            const cleaned = typeof rawValue === 'string'
-              ? rawValue.replace(/\s/g, "").replace(/,/g, ".").trim()
-              : rawValue;
-            cleanedItem[internalKey] = cleaned === '' ? null : cleaned;
-          }
-          // Regular fields
-          else {
-            cleanedItem[internalKey] = rawValue;
-          }
-        });
-        
-        return cleanedItem;
+          numericFields.forEach(field => {
+            if (cleanedItem[field] !== undefined) {
+              cleanedItem[field] = sanitizeNumericValue(cleanedItem[field]);
+            }
+          });
+          
+          return cleanedItem;
+        } catch (error) {
+          console.error(`❌ Error sanitizing item ${index}:`, error);
+          failedCount++;
+          failedItems.push({ index, error: error.message });
+          return item; // Return original on sanitization error
+        }
       });
 
-      // Debug: Log a sample cleaned item to verify transformation
-      if (cleanedItems.length > 0) {
-        console.log("🔍 DEBUG: Sample cleaned item:", JSON.stringify(cleanedItems[0], null, 2));
-      }
 
-      await storage.savePurchasingItems(cleanedItems, userId);
-      res.json({ success: true, saved: cleanedItems.length });
+      try {
+        await storage.savePurchasingItems(cleanedItems, userId);
+        console.log(`✅ Successfully saved all ${cleanedItems.length} purchasing items`);
+        res.json({ success: true, saved: cleanedItems.length, failed: failedCount });
+      } catch (error) {
+        console.error(`❌ Database save failed:`, error);
+        failedCount = cleanedItems.length; // All failed if database error
+        res.status(400).json({ 
+          success: false, 
+          message: 'Failed to save items to database',
+          saved: 0,
+          failed: failedCount,
+          error: error.message
+        });
+      }
 
     } catch (error) {
       console.error('Error saving purchasing items:', error);

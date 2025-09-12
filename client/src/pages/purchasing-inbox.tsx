@@ -66,17 +66,22 @@ interface FileUploadSectionProps {
   deleteFile: any;
 }
 
-export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: FileUploadSectionProps) {
+export function FileUploadSection({
+  rowIndex,
+  asin,
+  uploadFile,
+  deleteFile,
+}: FileUploadSectionProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch files for this row
   const { data: filesData } = useQuery({
-    queryKey: ['/api/purchasing/files', rowIndex],
+    queryKey: ["/api/purchasing/files", rowIndex],
     queryFn: async () => {
       const response = await fetch(`/api/purchasing/files/${rowIndex}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch files');
+        throw new Error("Failed to fetch files");
       }
       return response.json();
     },
@@ -89,7 +94,7 @@ export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: Fi
   const files = filesData?.files || [];
   const handleFileSelect = (selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
-    
+
     const file = selectedFiles[0];
     if (file) {
       uploadFile.mutate({ rowIndex, asin, file });
@@ -114,17 +119,17 @@ export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: Fi
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
-    if (mimeType.includes('pdf')) return <FileText className="w-4 h-4" />;
+    if (mimeType.startsWith("image/")) return <ImageIcon className="w-4 h-4" />;
+    if (mimeType.includes("pdf")) return <FileText className="w-4 h-4" />;
     return <Paperclip className="w-4 h-4" />;
   };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   return (
@@ -132,7 +137,9 @@ export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: Fi
       {/* File Upload Area */}
       <div
         className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-          isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+          isDragOver
+            ? "border-blue-400 bg-blue-50"
+            : "border-gray-300 hover:border-gray-400"
         }`}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={handleDragOver}
@@ -160,17 +167,27 @@ export function FileUploadSection({ rowIndex, asin, uploadFile, deleteFile }: Fi
         <div className="space-y-2">
           <h5 className="text-sm font-medium text-gray-700">Uploaded Files:</h5>
           {files.map((file: any) => (
-            <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+            <div
+              key={file.id}
+              className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+            >
               <div className="flex items-center space-x-2">
                 {getFileIcon(file.mimeType)}
                 <span className="text-sm text-gray-700">{file.filename}</span>
-                <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                <span className="text-xs text-gray-500">
+                  ({formatFileSize(file.size)})
+                </span>
               </div>
               <div className="flex items-center space-x-1">
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => window.open(`/api/purchasing/files/download/${file.id}`, '_blank')}
+                  onClick={() =>
+                    window.open(
+                      `/api/purchasing/files/download/${file.id}`,
+                      "_blank",
+                    )
+                  }
                   className="h-6 w-6 p-0"
                 >
                   <Download className="w-3 h-3" />
@@ -228,7 +245,8 @@ export default function PurchasingInbox() {
     refetchOnWindowFocus: false,
   });
 
-  const purchasingItems: GoogleSheetsSourcingItem[] = (sheetsData as any)?.items || [];
+  const purchasingItems: GoogleSheetsSourcingItem[] =
+    (sheetsData as any)?.items || [];
 
   // Add archived items to the display list and mark them as archived
   const archivedItems = (archivedData as any) || [];
@@ -254,7 +272,7 @@ export default function PurchasingInbox() {
         const productName = archivedItem["Product Name"]?.toString().trim();
         const asin = archivedItem["ASIN"]?.toString().trim();
         return productName && productName !== "" && asin && asin !== "";
-      })
+      }),
     );
 
   // Update Status (from column V)
@@ -402,20 +420,28 @@ export default function PurchasingInbox() {
 
   // File upload mutations
   const uploadFile = useMutation({
-    mutationFn: async ({ rowIndex, asin, file }: { rowIndex: number; asin: string; file: File }) => {
+    mutationFn: async ({
+      rowIndex,
+      asin,
+      file,
+    }: {
+      rowIndex: number;
+      asin: string;
+      file: File;
+    }) => {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('rowIndex', rowIndex.toString());
-      formData.append('asin', asin);
+      formData.append("file", file);
+      formData.append("rowIndex", rowIndex.toString());
+      formData.append("asin", asin);
 
-      const response = await fetch('/api/purchasing/files/upload', {
-        method: 'POST',
+      const response = await fetch("/api/purchasing/files/upload", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to upload file');
+        throw new Error(error.message || "Failed to upload file");
       }
 
       return response.json();
@@ -426,14 +452,14 @@ export default function PurchasingInbox() {
       });
 
       // Invalidate files query to refresh the file list
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/purchasing/files', variables.rowIndex] 
+      queryClient.invalidateQueries({
+        queryKey: ["/api/purchasing/files", variables.rowIndex],
       });
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
-        description: error.message || 'Failed to upload file',
+        description: error.message || "Failed to upload file",
       });
     },
   });
@@ -448,8 +474,8 @@ export default function PurchasingInbox() {
       });
 
       // Invalidate all file queries to refresh file lists
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/purchasing/files']
+      queryClient.invalidateQueries({
+        queryKey: ["/api/purchasing/files"],
       });
     },
     onError: (error: any) => {
@@ -478,10 +504,10 @@ export default function PurchasingInbox() {
   React.useEffect(() => {
     if (validItems.length > 0 && !isLoading && user) {
       console.log("🔄 Auto-syncing items to database...");
-      
+
       // Transform items to match database schema
       const itemsToSave = validItems
-        .filter(item => !(item as any)._isArchived) // Don't save archived items again
+        .filter((item) => !(item as any)._isArchived) // Don't save archived items again
         .map((item: any) => ({
           originalRowIndex: item._originalRowIndex,
           productName: item["Product Name"] || "",
@@ -527,7 +553,7 @@ export default function PurchasingInbox() {
       // Optimistically update to hide the item
       queryClient.setQueryData(["/api/purchasing/sheets"], (old: any) => {
         if (!old || !old.items) return old;
-        
+
         return {
           ...old,
           items: old.items.map((item: any, index: number) => {
@@ -536,7 +562,7 @@ export default function PurchasingInbox() {
               return { ...item, _isArchived: true };
             }
             return item;
-          })
+          }),
         };
       });
 
@@ -546,9 +572,12 @@ export default function PurchasingInbox() {
     onError: (err, rowIndex, context) => {
       // If the mutation fails, use the context to roll back
       if (context?.previousData) {
-        queryClient.setQueryData(["/api/purchasing/sheets"], context.previousData);
+        queryClient.setQueryData(
+          ["/api/purchasing/sheets"],
+          context.previousData,
+        );
       }
-      
+
       if (isUnauthorizedError(err)) {
         toast({
           variant: "destructive",
@@ -567,10 +596,12 @@ export default function PurchasingInbox() {
       toast({
         description: "Item archived successfully",
       });
-      
+
       // Refetch both sheets data and archived data
       queryClient.invalidateQueries({ queryKey: ["/api/purchasing/sheets"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchasing/items", "archived"] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/purchasing/items", "archived"],
+      });
     },
     onSettled: () => {
       // Always refetch after error or success
@@ -593,13 +624,13 @@ export default function PurchasingInbox() {
       // Optimistically remove the item
       queryClient.setQueryData(["/api/purchasing/sheets"], (old: any) => {
         if (!old || !old.items) return old;
-        
+
         return {
           ...old,
           items: old.items.filter((_: any, index: number) => {
             const currentRowIndex = index + 2; // +2 for 1-indexed sheets with header
             return currentRowIndex !== rowIndex;
-          })
+          }),
         };
       });
 
@@ -609,9 +640,12 @@ export default function PurchasingInbox() {
     onError: (err, rowIndex, context) => {
       // If the mutation fails, use the context to roll back
       if (context?.previousData) {
-        queryClient.setQueryData(["/api/purchasing/sheets"], context.previousData);
+        queryClient.setQueryData(
+          ["/api/purchasing/sheets"],
+          context.previousData,
+        );
       }
-      
+
       if (isUnauthorizedError(err)) {
         toast({
           variant: "destructive",
@@ -630,10 +664,12 @@ export default function PurchasingInbox() {
       toast({
         description: "Item deleted permanently",
       });
-      
+
       // Refetch data
       queryClient.invalidateQueries({ queryKey: ["/api/purchasing/sheets"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchasing/items", "archived"] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/purchasing/items", "archived"],
+      });
     },
     onSettled: () => {
       // Always refetch after error or success
@@ -675,7 +711,11 @@ export default function PurchasingInbox() {
 
   // Handle delete item
   const handleDeleteItem = (item: any) => {
-    if (window.confirm("Are you sure you want to permanently delete this item? This action cannot be undone.")) {
+    if (
+      window.confirm(
+        "Are you sure you want to permanently delete this item? This action cannot be undone.",
+      )
+    ) {
       deleteItem.mutate(item._originalRowIndex);
     }
   };
@@ -710,7 +750,7 @@ export default function PurchasingInbox() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      
+
       <div className="flex-1 overflow-auto">
         <div className="container mx-auto p-6">
           {/* Header */}
@@ -755,7 +795,9 @@ export default function PurchasingInbox() {
               <div className="space-y-6">
                 {validItems.map(
                   (
-                    item: GoogleSheetsSourcingItem & { _originalRowIndex: number },
+                    item: GoogleSheetsSourcingItem & {
+                      _originalRowIndex: number;
+                    },
                     index: number,
                   ) => {
                     const isFBAWarehouse =
@@ -794,7 +836,8 @@ export default function PurchasingInbox() {
                                     alt={item["Product Name"] || "Product"}
                                     className="w-16 h-16 rounded-lg object-cover bg-gray-100"
                                     onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
+                                      const target =
+                                        e.target as HTMLImageElement;
                                       target.style.display = "none";
                                     }}
                                   />
@@ -835,7 +878,9 @@ export default function PurchasingInbox() {
                                         variant="ghost"
                                         className="h-4 w-4 p-0 text-gray-500 hover:text-gray-700"
                                         onClick={() => {
-                                          navigator.clipboard.writeText(item["ASIN"]);
+                                          navigator.clipboard.writeText(
+                                            item["ASIN"],
+                                          );
                                           toast({
                                             description: `ASIN ${item["ASIN"]} copied to clipboard`,
                                           });
@@ -856,22 +901,25 @@ export default function PurchasingInbox() {
                                     >
                                       {item["EAN Barcode"] || "N/A"}
                                     </span>
-                                    {item["EAN Barcode"] && item["EAN Barcode"] !== "N/A" && (
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-4 w-4 p-0 text-gray-500 hover:text-gray-700"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(item["EAN Barcode"]);
-                                          toast({
-                                            description: `EAN ${item["EAN Barcode"]} copied to clipboard`,
-                                          });
-                                        }}
-                                        data-testid={`copy-ean-${index}`}
-                                      >
-                                        <Copy className="w-3 h-3" />
-                                      </Button>
-                                    )}
+                                    {item["EAN Barcode"] &&
+                                      item["EAN Barcode"] !== "N/A" && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-4 w-4 p-0 text-gray-500 hover:text-gray-700"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(
+                                              item["EAN Barcode"],
+                                            );
+                                            toast({
+                                              description: `EAN ${item["EAN Barcode"]} copied to clipboard`,
+                                            });
+                                          }}
+                                          data-testid={`copy-ean-${index}`}
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </Button>
+                                      )}
                                   </div>
                                 </div>
                               </div>
@@ -959,17 +1007,23 @@ export default function PurchasingInbox() {
                                   </h5>
                                   <div className="space-y-1 text-xs">
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Amazon:</span>
+                                      <span className="text-gray-600">
+                                        Amazon:
+                                      </span>
                                       <span className="font-medium">150</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-blue-600">FBA:</span>
+                                      <span className="text-blue-600">
+                                        FBA:
+                                      </span>
                                       <span className="font-medium">
                                         {item["FBA Seller Count"] || "0"}
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-green-600">FBM:</span>
+                                      <span className="text-green-600">
+                                        FBM:
+                                      </span>
                                       <span className="font-medium">
                                         {item["FBM Seller Count"] || "0"}
                                       </span>
@@ -996,7 +1050,9 @@ export default function PurchasingInbox() {
                                       <span className="font-medium">8</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Total:</span>
+                                      <span className="text-gray-600">
+                                        Total:
+                                      </span>
                                       <span className="font-medium">20</span>
                                     </div>
                                   </div>
@@ -1085,144 +1141,6 @@ export default function PurchasingInbox() {
                                     <div className="flex items-center gap-2 text-orange-500">
                                       <Bell className="w-4 h-4" />
                                       Price changed
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Amazon active">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Amazon active
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Recent price increase">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Recent price increase
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Already submitted">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Already submitted
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Not enough profit for sale volume">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Not enough profit for sale volume
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Buy price changed">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Buy price changed
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Instable Price">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Instable Price
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Already selling">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Already selling
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Hazmat">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Hazmat
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Bad store">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Bad store
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Restricted Brand">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Restricted Brand
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Too heavy weight">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Too heavy weight
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Potential IP claims">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Potential IP claims
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Private Label">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Private Label
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="No Source URL">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      No Source URL
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Gated">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Gated
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Too many offers">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Too many offers
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Low stock">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Low stock
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Out of stock">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Out of stock
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="FBA Stock > 3 months sales">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      FBA Stock &gt; 3 months sales
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Transparency Code needed">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Transparency Code needed
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Buybox suppressed">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Buybox suppressed
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Different Amount">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Different Amount
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="Brand active">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Brand active
                                     </div>
                                   </SelectItem>
                                 </SelectContent>
@@ -1342,7 +1260,9 @@ export default function PurchasingInbox() {
                                   variant="outline"
                                   size="sm"
                                   className="w-full justify-start"
-                                  onClick={() => window.open(item["Source URL"], "_blank")}
+                                  onClick={() =>
+                                    window.open(item["Source URL"], "_blank")
+                                  }
                                   data-testid={`source-link-${index}`}
                                 >
                                   <ExternalLink className="w-4 h-4 mr-2" />
@@ -1356,7 +1276,9 @@ export default function PurchasingInbox() {
                                   variant="outline"
                                   size="sm"
                                   className="w-full justify-start"
-                                  onClick={() => window.open(item["Amazon URL"], "_blank")}
+                                  onClick={() =>
+                                    window.open(item["Amazon URL"], "_blank")
+                                  }
                                   data-testid={`amazon-link-${index}`}
                                 >
                                   <ExternalLink className="w-4 h-4 mr-2" />
