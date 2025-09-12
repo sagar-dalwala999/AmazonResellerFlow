@@ -888,7 +888,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const inventoryResult = await inventoryResponse.json();
-      const itemId = inventoryResult.item_details.id;
+      console.log('📝 Step 1: Full inventory API response:', JSON.stringify(inventoryResult, null, 2));
+      
+      // Handle different possible response structures
+      let itemId;
+      if (inventoryResult.item_details?.id) {
+        itemId = inventoryResult.item_details.id;
+      } else if (inventoryResult.id) {
+        itemId = inventoryResult.id;
+      } else if (inventoryResult.data?.id) {
+        itemId = inventoryResult.data.id;
+      } else {
+        console.error('❌ Unexpected inventory response structure:', inventoryResult);
+        return res.status(500).json({ 
+          message: 'Unexpected inventory API response structure',
+          details: 'Could not find item ID in response',
+          response: inventoryResult
+        });
+      }
+      
       console.log('✅ Step 1: Inventory item created successfully with ID:', itemId);
 
       // STEP 2: Create shipment
@@ -919,7 +937,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const shipmentResult = await shipmentResponse.json();
-      const shipmentId = shipmentResult.id;
+      console.log('📝 Step 2: Full shipment API response:', JSON.stringify(shipmentResult, null, 2));
+      
+      // Handle different possible response structures
+      let shipmentId;
+      if (shipmentResult.id) {
+        shipmentId = shipmentResult.id;
+      } else if (shipmentResult.data?.id) {
+        shipmentId = shipmentResult.data.id;
+      } else if (shipmentResult.shipment?.id) {
+        shipmentId = shipmentResult.shipment.id;
+      } else {
+        console.error('❌ Unexpected shipment response structure:', shipmentResult);
+        return res.status(500).json({ 
+          message: 'Unexpected shipment API response structure',
+          details: 'Could not find shipment ID in response',
+          response: shipmentResult
+        });
+      }
+      
       console.log('✅ Step 2: Shipment created successfully with ID:', shipmentId);
 
       // STEP 3: Add item to shipment
