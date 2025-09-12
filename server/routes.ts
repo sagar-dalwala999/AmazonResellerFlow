@@ -834,7 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Create shipment via PrepMyBusiness API
+  // Create shipment via PrepMyBusiness API (3-step process)
   app.post('/api/purchasing/create-shipment', isAuthenticated, async (req, res) => {
     try {
       const { asin, productName, quantity } = req.body;
@@ -855,94 +855,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create shipment payload
-      const shipmentPayload = {
-        merchant_id: parseInt(merchantId),
-        product_asin: asin,
-        product_name: productName,
-        quantity: parseInt(quantity),
-        // Add any other required fields based on PrepMyBusiness API documentation
+      console.log('🚛 Starting PrepMyBusiness shipment creation for:', { asin, productName, quantity });
+
+      // STEP 1: Create inventory item
+      const merchantSku = `SKU-${asin}-${Date.now()}`;
+      const inventoryPayload = {
+        merchant_sku: merchantSku,
+        title: productName,
+        condition: "new"
       };
 
-      console.log('🚛 Creating PrepMyBusiness shipment:', shipmentPayload);
+      console.log('📦 Step 1: Creating inventory item:', inventoryPayload);
 
-      // Try different possible API endpoints
-      const possibleEndpoints = [
-        `${apiUrl}/shipment`, // singular
-        `${apiUrl}/create-shipment`,
-        `${apiUrl}/v1/shipments`, 
-        `${apiUrl}/inbound/shipments`,
-        `${apiUrl}/shipments/create`,
-        `${apiUrl}/api/shipments`,
-      ];
+      const inventoryResponse = await fetch(`${apiUrl}/inventory`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json',
+          'X-Selected-Client-Id': merchantId,
+        },
+        body: JSON.stringify(inventoryPayload),
+      });
 
-      let response;
-      let lastError;
-      
-      for (const endpoint of possibleEndpoints) {
-        try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
-          response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
-              'X-Merchant-ID': merchantId,
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(shipmentPayload),
-          });
-
-          if (response.ok) {
-            console.log(`✅ Success with endpoint: ${endpoint}`);
-            break;
-          } else if (response.status !== 404) {
-            // If it's not a 404, it means the endpoint exists but there's another issue
-            console.log(`⚠️  Endpoint ${endpoint} exists but returned ${response.status}`);
-            break;
-          } else {
-            console.log(`❌ Endpoint ${endpoint} returned 404`);
-          }
-        } catch (error) {
-          console.log(`❌ Error with endpoint ${endpoint}:`, error.message);
-          lastError = error;
-        }
-      }
-
-      if (!response || !response.ok) {
-        const errorText = response ? await response.text() : 'No valid endpoint found';
-        console.error('❌ PrepMyBusiness API error after trying all endpoints:', response?.status, errorText);
-        
-        return res.status(422).json({ 
-          success: false,
-          message: 'PrepMyBusiness API Integration Issue',
-          details: `All tested API endpoints returned 404 errors. This suggests the API structure might be different than expected.`,
-          error: {
-            lastStatus: response?.status || 'No response',
-            testedEndpoints: possibleEndpoints,
-            recommendation: 'Please check the PrepMyBusiness API documentation for the correct endpoint structure'
-          },
-          nextSteps: [
-            'Verify the API base URL: https://portal.beeprep.de/api',
-            'Check if API credentials are correct',
-            'Confirm the exact endpoint path for creating shipments',
-            'Verify required request headers and authentication method'
-          ]
+      if (!inventoryResponse.ok) {
+        const errorText = await inventoryResponse.text();
+        console.error('❌ Failed to create inventory item:', inventoryResponse.status, errorText);
+        return res.status(inventoryResponse.status).json({ 
+          message: `Failed to create inventory item: ${inventoryResponse.status}`,
+          details: errorText 
         });
       }
 
+      const inventoryResult = await inventoryResponse.json();
+      const itemId = inventoryResult.item_details.id;
+      console.log('✅ Step 1: Inventory item created successfully with ID:', itemId);
 
-      const shipmentResult = await response.json();
-      console.log('✅ Shipment created successfully:', shipmentResult);
+      // STEP 2: Create shipment
+      const shipmentPayload = {
+        name: productName,
+        notes: `Automated shipment for ASIN: ${asin}`
+      };
+
+      console.log('🚢 Step 2: Creating shipment:', shipmentPayload);
+
+      const shipmentResponse = await fetch(`${apiUrl}/shipments/inbound?api_token=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Selected-Client-Id': merchantId,
+        },
+        body: JSON.stringify(shipmentPayload),
+      });
+
+      if (!shipmentResponse.ok) {
+        const errorText = await shipmentResponse.text();
+        console.error('❌ Failed to create shipment:', shipmentResponse.status, errorText);
+        return res.status(shipmentResponse.status).json({ 
+          message: `Failed to create shipment: ${shipmentResponse.status}`,
+          details: errorText 
+        });
+      }
+
+      const shipmentResult = await shipmentResponse.json();
+      const shipmentId = shipmentResult.id;
+      console.log('✅ Step 2: Shipment created successfully with ID:', shipmentId);
+
+      // STEP 3: Add item to shipment
+      const addItemPayload = {
+        item_id: itemId,
+        quantity: parseInt(quantity)
+      };
+
+      console.log('➕ Step 3: Adding item to shipment:', addItemPayload);
+
+      const addItemResponse = await fetch(`${apiUrl}/shipments/inbound/${shipmentId}/add-item?api_token=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Selected-Client-Id': merchantId,
+        },
+        body: JSON.stringify(addItemPayload),
+      });
+
+      if (!addItemResponse.ok) {
+        const errorText = await addItemResponse.text();
+        console.error('❌ Failed to add item to shipment:', addItemResponse.status, errorText);
+        return res.status(addItemResponse.status).json({ 
+          message: `Failed to add item to shipment: ${addItemResponse.status}`,
+          details: errorText 
+        });
+      }
+
+      const addItemResult = await addItemResponse.json();
+      console.log('✅ Step 3: Item added to shipment successfully:', addItemResult);
 
       res.json({ 
         success: true, 
-        shipment: shipmentResult,
-        message: 'Shipment created successfully via PrepMyBusiness'
+        message: 'Shipment created successfully via PrepMyBusiness',
+        data: {
+          inventoryItem: {
+            id: itemId,
+            merchantSku: merchantSku
+          },
+          shipment: {
+            id: shipmentId,
+            name: productName
+          },
+          quantity: parseInt(quantity)
+        }
       });
 
     } catch (error) {
-      console.error('Error creating PrepMyBusiness shipment:', error);
+      console.error('❌ Error creating PrepMyBusiness shipment:', error);
       res.status(500).json({ 
         message: 'Failed to create shipment',
         error: error.message 
