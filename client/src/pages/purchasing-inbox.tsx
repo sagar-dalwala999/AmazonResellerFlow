@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -219,6 +220,9 @@ export default function PurchasingInbox() {
     item: GoogleSheetsSourcingItem;
     notes: string;
   } | null>(null);
+  
+  // State to track purchased amounts for each row
+  const [purchasedAmounts, setPurchasedAmounts] = useState<Record<number, number>>({});
 
   // Fetch purchasing items directly from Google Sheets
   const {
@@ -1000,6 +1004,95 @@ export default function PurchasingInbox() {
                                   </div>
                                 </div>
                               </div>
+                              
+                              {/* Calculated Purchase Fields */}
+                              <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 mt-4">
+                                <h5 className="text-sm font-semibold text-blue-800 mb-3">
+                                  Purchase Calculations
+                                </h5>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                  {/* Purchased Amount - Editable */}
+                                  <div className="bg-white border border-blue-200 rounded-lg p-3">
+                                    <div className="text-xs text-blue-600 font-medium mb-1">
+                                      Purchased Amount
+                                    </div>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      placeholder="0"
+                                      value={purchasedAmounts[(item as any)._originalRowIndex] || ''}
+                                      onChange={(e) => {
+                                        const amount = parseFloat(e.target.value) || 0;
+                                        setPurchasedAmounts(prev => ({
+                                          ...prev,
+                                          [(item as any)._originalRowIndex]: amount
+                                        }));
+                                      }}
+                                      className="h-8 text-sm font-bold text-blue-700"
+                                      data-testid={`purchased-amount-${index}`}
+                                    />
+                                    <div className="text-xs text-blue-600 mt-1">
+                                      units
+                                    </div>
+                                  </div>
+
+                                  {/* Spent - Calculated */}
+                                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                    <div className="text-xs text-red-600 font-medium mb-1">
+                                      Spent
+                                    </div>
+                                    <div className="text-sm font-bold text-red-700 h-8 flex items-center">
+                                      {(() => {
+                                        const purchasedAmount = purchasedAmounts[(item as any)._originalRowIndex] || 0;
+                                        const costPrice = parsePrice(item["Cost Price"]);
+                                        const spent = costPrice * purchasedAmount;
+                                        return formatPrice(spent);
+                                      })()}
+                                    </div>
+                                    <div className="text-xs text-red-600">
+                                      Cost × Amount
+                                    </div>
+                                  </div>
+
+                                  {/* Revenue - Calculated */}
+                                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                    <div className="text-xs text-green-600 font-medium mb-1">
+                                      Revenue
+                                    </div>
+                                    <div className="text-sm font-bold text-green-700 h-8 flex items-center">
+                                      {(() => {
+                                        const purchasedAmount = purchasedAmounts[(item as any)._originalRowIndex] || 0;
+                                        const salePrice = parsePrice(item["Sale Price"]);
+                                        const revenue = salePrice * purchasedAmount;
+                                        return formatPrice(revenue);
+                                      })()}
+                                    </div>
+                                    <div className="text-xs text-green-600">
+                                      Sale × Amount
+                                    </div>
+                                  </div>
+
+                                  {/* Profit - Calculated */}
+                                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                    <div className="text-xs text-purple-600 font-medium mb-1">
+                                      Total Profit
+                                    </div>
+                                    <div className="text-sm font-bold text-purple-700 h-8 flex items-center">
+                                      {(() => {
+                                        const purchasedAmount = purchasedAmounts[(item as any)._originalRowIndex] || 0;
+                                        const profitPerUnit = parsePrice(item["Profit"]);
+                                        const totalProfit = profitPerUnit * purchasedAmount;
+                                        return formatPrice(totalProfit);
+                                      })()}
+                                    </div>
+                                    <div className="text-xs text-purple-600">
+                                      Profit × Amount
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
                               <div className="lg:grid-cols-3 grid-cols-1 grid gap-3">
                                 <div className="border border-gray rounded-md p-3">
                                   <h5 className="text-sm font-medium text-gray-700 mb-2">
