@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -133,78 +134,81 @@ export function FileUploadSection({
   };
 
   return (
-    <div className="mt-4 space-y-2">
-      {/* File Upload Area */}
-      <div
-        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-          isDragOver
-            ? "border-blue-400 bg-blue-50"
-            : "border-gray-300 hover:border-gray-400"
-        }`}
-        onClick={() => fileInputRef.current?.click()}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files)}
-          accept="image/*,.pdf,.doc,.docx,.txt"
-        />
-        <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-        <p className="text-sm text-gray-600">
-          Drop files here or click to upload
-        </p>
-        <p className="text-xs text-gray-500">
-          Images, PDFs, Documents (Max 10MB)
-        </p>
-      </div>
-
-      {/* Uploaded Files List */}
-      {files.length > 0 && (
-        <div className="space-y-2">
-          <h5 className="text-sm font-medium text-gray-700">Uploaded Files:</h5>
-          {files.map((file: any) => (
-            <div
-              key={file.id}
-              className="flex items-center justify-between p-2 bg-gray-50 rounded border"
-            >
-              <div className="flex items-center space-x-2">
-                {getFileIcon(file.mimeType)}
-                <span className="text-sm text-gray-700">{file.filename}</span>
-                <span className="text-xs text-gray-500">
-                  ({formatFileSize(file.size)})
-                </span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    window.open(
-                      `/api/purchasing/files/download/${file.id}`,
-                      "_blank",
-                    )
-                  }
-                  className="h-6 w-6 p-0"
-                >
-                  <Download className="w-3 h-3" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => deleteFile.mutate(file.id)}
-                  className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
+    <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px] text-xs">
+      <h5 className="text-sm font-medium text-gray-700 mb-3">Files</h5>
+      <div className="mt-4 space-y-2">
+        {/* File Upload Area */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+            isDragOver
+              ? "border-blue-400 bg-blue-50"
+              : "border-gray-300 hover:border-gray-400"
+          }`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => handleFileSelect(e.target.files)}
+            accept="image/*,.pdf,.doc,.docx,.txt"
+          />
+          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm text-gray-600">
+            Drop files here or click to upload
+          </p>
+          <p className="text-xs text-gray-500">
+            Images, PDFs, Documents (Max 10MB)
+          </p>
         </div>
-      )}
+  
+        {/* Uploaded Files List */}
+        {files.length > 0 && (
+          <div className="space-y-2">
+            <h5 className="text-sm font-medium text-gray-700">Uploaded Files:</h5>
+            {files.map((file: any) => (
+              <div
+                key={file.id}
+                className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+              >
+                <div className="flex items-center space-x-2">
+                  {getFileIcon(file.mimeType)}
+                  <span className="text-sm text-gray-700">{file.filename}</span>
+                  <span className="text-xs text-gray-500">
+                    ({formatFileSize(file.size)})
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      window.open(
+                        `/api/purchasing/files/download/${file.id}`,
+                        "_blank",
+                      )
+                    }
+                    className="h-6 w-6 p-0"
+                  >
+                    <Download className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => deleteFile.mutate(file.id)}
+                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -219,7 +223,8 @@ export default function PurchasingInbox() {
     item: GoogleSheetsSourcingItem;
     notes: string;
   } | null>(null);
-
+  const [purchasedAmounts, setPurchasedAmounts] = useState<{[key: string]: number}>({});
+  const lastSavedRef = React.useRef<string>("");
   // Fetch purchasing items directly from Google Sheets
   const {
     data: sheetsData,
@@ -502,12 +507,9 @@ export default function PurchasingInbox() {
 
   // Auto-save items to database when data changes
   React.useEffect(() => {
-    if (validItems.length > 0 && !isLoading && user) {
-      console.log("🔄 Auto-syncing items to database...");
-
-      // Transform items to match database schema
-      const itemsToSave = validItems
-        .filter((item) => !(item as any)._isArchived) // Don't save archived items again
+      if (validItems.length > 0 && !isLoading && user) {
+        const itemsToSave = validItems
+          .filter((item) => !(item as any)._isArchived)
         .map((item: any) => ({
           originalRowIndex: item._originalRowIndex,
           productName: item["Product Name"] || "",
@@ -531,11 +533,13 @@ export default function PurchasingInbox() {
           amazonUrl: item["Amazon URL"] || "",
           datum: item["Datum"] || "",
         }));
-
-      if (itemsToSave.length > 0) {
-        saveItemsToDatabase.mutate(itemsToSave);
-      }
-    }
+        const serialized = JSON.stringify(itemsToSave);
+          if (lastSavedRef.current !== serialized) {
+            console.log("🔄 Auto-syncing items to database...");
+            saveItemsToDatabase.mutate(itemsToSave);
+            lastSavedRef.current = serialized;
+          }
+        }
   }, [validItems, isLoading, user]);
 
   // Archive item with optimistic updates
@@ -692,6 +696,30 @@ export default function PurchasingInbox() {
       style: "currency",
       currency: "EUR",
     }).format(price);
+  };
+
+  // Calculate amounts based on purchased quantity
+  const getPurchasedAmount = (itemKey: string): number => {
+    return purchasedAmounts[itemKey] || 0;
+  };
+
+  const updatePurchasedAmount = (itemKey: string, amount: number) => {
+    setPurchasedAmounts(prev => ({
+      ...prev,
+      [itemKey]: Math.max(0, amount) // Ensure positive numbers
+    }));
+  };
+
+  const calculateSpent = (costPrice: string | number | undefined, purchasedAmount: number): number => {
+    return parsePrice(costPrice) * purchasedAmount;
+  };
+
+  const calculateRevenue = (salePrice: string | number | undefined, purchasedAmount: number): number => {
+    return parsePrice(salePrice) * purchasedAmount;
+  };
+
+  const calculateCalculatedProfit = (profit: string | number | undefined, purchasedAmount: number): number => {
+    return parsePrice(profit) * purchasedAmount;
   };
 
   // Handle edit notes
@@ -1000,6 +1028,90 @@ export default function PurchasingInbox() {
                                   </div>
                                 </div>
                               </div>
+
+                              {/* Calculated Fields Section */}
+                              <div className="grid grid-cols-4 gap-3 mt-6 mb-4">
+                                {(() => {
+                                  const itemKey = `${item["ASIN"]}-${index}`;
+                                  const purchasedQty = getPurchasedAmount(itemKey);
+                                  const spent = calculateSpent(item["Cost Price"], purchasedQty);
+                                  const revenue = calculateRevenue(item["Sale Price"], purchasedQty);
+                                  const calculatedProfit = calculateCalculatedProfit(item["Profit"], purchasedQty);
+
+                                  return (
+                                    <>
+                                      {/* Purchased Amount - Editable */}
+                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="text-xs text-blue-600 font-medium mb-2">
+                                          Purchased Amount
+                                        </div>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          value={purchasedQty}
+                                          onChange={(e) => updatePurchasedAmount(itemKey, parseInt(e.target.value) || 0)}
+                                          className="text-sm font-bold text-blue-700 h-8 border-0 bg-transparent p-0"
+                                          placeholder="0"
+                                          data-testid={`purchased-amount-${index}`}
+                                        />
+                                        <div className="text-xs text-blue-600 mt-1">
+                                          units
+                                        </div>
+                                      </div>
+
+                                      {/* Spent - Calculated */}
+                                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                        <div className="text-xs text-red-600 font-medium mb-1">
+                                          Spent
+                                        </div>
+                                        <div className="text-sm font-bold text-red-700">
+                                          {new Intl.NumberFormat("de-DE", {
+                                            style: "currency",
+                                            currency: "EUR",
+                                          }).format(spent)}
+                                        </div>
+                                        <div className="text-xs text-red-600">
+                                          Cost × Quantity
+                                        </div>
+                                      </div>
+
+                                      {/* Revenue - Calculated */}
+                                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                        <div className="text-xs text-green-600 font-medium mb-1">
+                                          Revenue
+                                        </div>
+                                        <div className="text-sm font-bold text-green-700">
+                                          {new Intl.NumberFormat("de-DE", {
+                                            style: "currency",
+                                            currency: "EUR",
+                                          }).format(revenue)}
+                                        </div>
+                                        <div className="text-xs text-green-600">
+                                          Sale × Quantity
+                                        </div>
+                                      </div>
+
+                                      {/* Profit - Calculated */}
+                                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                        <div className="text-xs text-purple-600 font-medium mb-1">
+                                          Total Profit
+                                        </div>
+                                        <div className="text-sm font-bold text-purple-700">
+                                          {new Intl.NumberFormat("de-DE", {
+                                            style: "currency",
+                                            currency: "EUR",
+                                          }).format(calculatedProfit)}
+                                        </div>
+                                        <div className="text-xs text-purple-600">
+                                          Profit × Quantity
+                                        </div>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                              
                               <div className="lg:grid-cols-3 grid-cols-1 grid gap-3">
                                 <div className="border border-gray rounded-md p-3">
                                   <h5 className="text-sm font-medium text-gray-700 mb-2">
@@ -1208,18 +1320,29 @@ export default function PurchasingInbox() {
                                 </SelectContent>
                               </Select>
 
-                              {/* Notes and Action Buttons */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => handleEditNotes(item)}
-                                data-testid={`edit-notes-${index}`}
-                              >
-                                <SquarePen className="w-4 h-4 mr-2" />
-                                {item["Notes"] ? "Edit Notes" : "Add Notes"}
-                              </Button>
-
+                              {/* Notes */}
+                              <div className="text-gray-600 bg-gray-50 rounded-lg p-2 min-h-[80px]">
+                                <div className="flex justify-between mb-2">
+                                  <h5 className="text-sm font-medium text-gray-700 ">
+                                    Notes
+                                  </h5>
+                                  <button
+                                    onClick={() => handleEditNotes(item)}
+                                    className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                                    data-testid={`edit-notes-${index}`}
+                                  >
+                                    <SquarePen className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <div className="text-sm ">
+                                  {item.Notes || (
+                                    <span className="text-gray-400 italic">
+                                      No notes yet
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
                               {/* File Upload Section */}
                               <FileUploadSection
                                 rowIndex={item._originalRowIndex}
@@ -1231,60 +1354,58 @@ export default function PurchasingInbox() {
                               {/* Action Buttons */}
                               <div className="flex gap-2">
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
-                                  className="flex-1"
+                                  className="text-orange-600 hover:text-orange-700 w-6 h-6"
                                   onClick={() => handleArchiveItem(item)}
                                   disabled={archiveItem.isPending}
                                   data-testid={`archive-${index}`}
                                 >
                                   <Archive className="w-4 h-4 mr-1" />
-                                  Archive
                                 </Button>
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
-                                  className="flex-1 text-red-600 hover:text-red-700"
+                                  className="text-red-600 hover:text-red-700 w-6 h-6"
                                   onClick={() => handleDeleteItem(item)}
                                   disabled={deleteItem.isPending}
                                   data-testid={`delete-${index}`}
                                 >
                                   <Trash2 className="w-4 h-4 mr-1" />
-                                  Delete
                                 </Button>
+
+
+                                {/* Source URL */}
+                                {item["Source URL"] && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="justify-start  w-6 h-6"
+                                    onClick={() =>
+                                      window.open(item["Source URL"], "_blank")
+                                    }
+                                    data-testid={`source-link-${index}`}
+                                  >
+                                    <ExternalLink className="w-4 h-4 mr-2" />
+                                  </Button>
+                                )}
+
+                                {/* Amazon URL */}
+                                {item["Amazon URL"] && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="justify-start w-6 h-6"
+                                    onClick={() =>
+                                      window.open(item["Amazon URL"], "_blank")
+                                    }
+                                    data-testid={`amazon-link-${index}`}
+                                  >
+                                    <ExternalLink className="w-4 h-4 mr-2" />
+                                  </Button>
+                                )}
                               </div>
 
-                              {/* Source URL */}
-                              {item["Source URL"] && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-full justify-start"
-                                  onClick={() =>
-                                    window.open(item["Source URL"], "_blank")
-                                  }
-                                  data-testid={`source-link-${index}`}
-                                >
-                                  <ExternalLink className="w-4 h-4 mr-2" />
-                                  View Source
-                                </Button>
-                              )}
-
-                              {/* Amazon URL */}
-                              {item["Amazon URL"] && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-full justify-start"
-                                  onClick={() =>
-                                    window.open(item["Amazon URL"], "_blank")
-                                  }
-                                  data-testid={`amazon-link-${index}`}
-                                >
-                                  <ExternalLink className="w-4 h-4 mr-2" />
-                                  View on Amazon
-                                </Button>
-                              )}
                             </div>
                           </div>
                         </div>
