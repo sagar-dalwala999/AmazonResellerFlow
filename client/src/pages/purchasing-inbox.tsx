@@ -257,31 +257,31 @@ export default function PurchasingInbox() {
       })
     );
 
-  // Update Product Review (Winner status)
-  const updateProductReview = useMutation({
+  // Update Status (from column V)
+  const updateStatus = useMutation({
     mutationFn: async ({
       rowIndex,
-      productReview,
+      status,
     }: {
       rowIndex: number;
-      productReview: string;
+      status: string;
     }) => {
-      const response = await fetch("/api/purchasing/update-product-review", {
+      const response = await fetch("/api/purchasing/update-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowIndex, productReview }),
+        body: JSON.stringify({ rowIndex, status }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to update product review");
+        throw new Error(error.message || "Failed to update status");
       }
 
       return response.json();
     },
     onSuccess: (data, variables) => {
       toast({
-        description: `Product review updated to "${variables.productReview}"`,
+        description: `Status updated to "${variables.status}"`,
       });
 
       // Invalidate and refetch the sheets data to get updated information
@@ -299,7 +299,7 @@ export default function PurchasingInbox() {
 
       toast({
         variant: "destructive",
-        description: error.message || "Failed to update product review",
+        description: error.message || "Failed to update status",
       });
     },
   });
@@ -498,7 +498,7 @@ export default function PurchasingInbox() {
           estimatedSales: item["Estimated Sales"] || "",
           fbaSellerCount: item["FBA Seller Count"] || "",
           fbmSellerCount: item["FBM Seller Count"] || "",
-          productReview: item["Product Review"] || "",
+          status: item["Status"] || "",
           notes: item["Notes"] || "",
           sourcingMethod: item["Sourcing Method"] || "",
           sourceUrl: item["Source URL"] || "",
@@ -758,8 +758,8 @@ export default function PurchasingInbox() {
                     item: GoogleSheetsSourcingItem & { _originalRowIndex: number },
                     index: number,
                   ) => {
-                    const isWinner =
-                      item["Product Review"]?.toLowerCase() === "winner";
+                    const isFBAWarehouse =
+                      item["Status"]?.toLowerCase() === "fba warehouse";
                     const buyPrice = parsePrice(item["Cost Price"]);
                     const sellPrice = parsePrice(item["Sale Price"]);
                     const profit = parsePrice(item["Profit"]);
@@ -1004,51 +1004,87 @@ export default function PurchasingInbox() {
                               </div>
                             </div>
                             <div className="lg:w-[300px] w-full grid grid-cols-1 gap-2">
-                              {/* Product Status */}
+                              {/* Status Dropdown */}
                               <Select
-                                defaultValue={item["Product Review"] || ""}
+                                defaultValue={item["Status"] || ""}
                                 onValueChange={(value) => {
-                                  updateProductReview.mutate({
+                                  updateStatus.mutate({
                                     rowIndex: (item as any)._originalRowIndex,
-                                    productReview: value,
+                                    status: value,
                                   });
                                 }}
                               >
                                 <SelectTrigger
                                   className="w-full h-8"
-                                  data-testid={`product-status-${index}`}
+                                  data-testid={`status-${index}`}
                                 >
-                                  <SelectValue placeholder="Mark Status" />
+                                  <SelectValue placeholder="Select Status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Winner">
+                                  <SelectItem value="Prep">
+                                    <div className="flex items-center gap-2 text-blue-600">
+                                      <Package className="w-4 h-4" />
+                                      Prep
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="FBA Warehouse">
                                     <div className="flex items-center gap-2 text-green-600">
                                       <CheckCircle2 className="w-4 h-4" />
-                                      Winner
+                                      FBA Warehouse
                                     </div>
                                   </SelectItem>
-                                  <SelectItem value="Low Margin">
-                                    <div className="flex items-center gap-2 text-red-500">
-                                      <X className="w-4 h-4" />
-                                      Low Margin
+                                  <SelectItem value="Gated">
+                                    <div className="flex items-center gap-2 text-yellow-600">
+                                      <Bell className="w-4 h-4" />
+                                      Gated
                                     </div>
                                   </SelectItem>
-                                  <SelectItem value="Low ROI">
+                                  <SelectItem value="Return">
                                     <div className="flex items-center gap-2 text-red-500">
                                       <X className="w-4 h-4" />
-                                      Low ROI
+                                      Return
                                     </div>
                                   </SelectItem>
-                                  <SelectItem value="Less than 50 sales a month">
+                                  <SelectItem value="Cancelled">
                                     <div className="flex items-center gap-2 text-red-500">
                                       <X className="w-4 h-4" />
-                                      Less than 50 sales a month
+                                      Cancelled
                                     </div>
                                   </SelectItem>
-                                  <SelectItem value="Different product">
+                                  <SelectItem value="Out of Stock">
                                     <div className="flex items-center gap-2 text-red-500">
                                       <X className="w-4 h-4" />
-                                      Different product
+                                      Out of Stock
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Low Stock">
+                                    <div className="flex items-center gap-2 text-orange-500">
+                                      <Bell className="w-4 h-4" />
+                                      Low Stock
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="On hold">
+                                    <div className="flex items-center gap-2 text-yellow-500">
+                                      <Bell className="w-4 h-4" />
+                                      On hold
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Pre-Order">
+                                    <div className="flex items-center gap-2 text-blue-500">
+                                      <Target className="w-4 h-4" />
+                                      Pre-Order
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Not profitable anymore">
+                                    <div className="flex items-center gap-2 text-red-500">
+                                      <X className="w-4 h-4" />
+                                      Not profitable anymore
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Price changed">
+                                    <div className="flex items-center gap-2 text-orange-500">
+                                      <Bell className="w-4 h-4" />
+                                      Price changed
                                     </div>
                                   </SelectItem>
                                   <SelectItem value="Amazon active">
