@@ -1209,13 +1209,47 @@ export default function PurchasingInbox() {
                                   <SelectValue placeholder="Select Sourcing Method" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Manual">
-                                    <Target className="w-4 h-4 mr-2 inline" />
-                                    Manual
+                                  <SelectItem value="Profitpath">
+                                    <div className="flex items-center gap-2">
+                                      <Target className="w-4 h-4" />
+                                      Profitpath
+                                    </div>
                                   </SelectItem>
-                                  <SelectItem value="Extension">
-                                    <Package className="w-4 h-4 mr-2 inline" />
-                                    Extension
+                                  <SelectItem value="Storefront Stalking">
+                                    <div className="flex items-center gap-2">
+                                      <Eye className="w-4 h-4" />
+                                      Storefront Stalking
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Manual">
+                                    <div className="flex items-center gap-2">
+                                      <User className="w-4 h-4" />
+                                      Manual
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Idealo Scraper">
+                                    <div className="flex items-center gap-2">
+                                      <Search className="w-4 h-4" />
+                                      Idealo Scraper
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Qogita price alert">
+                                    <div className="flex items-center gap-2">
+                                      <Bell className="w-4 h-4" />
+                                      Qogita price alert
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Wholesale">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-4 h-4" />
+                                      Wholesale
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="Idealo notifier">
+                                    <div className="flex items-center gap-2">
+                                      <Bell className="w-4 h-4" />
+                                      Idealo notifier
+                                    </div>
                                   </SelectItem>
                                 </SelectContent>
                               </Select>

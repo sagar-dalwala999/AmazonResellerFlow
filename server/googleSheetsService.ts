@@ -938,6 +938,121 @@ export class GoogleSheetsService {
       throw error;
     }
   }
+
+  async readPurchasingSheet(): Promise<{
+    headers: string[];
+    items: Record<string, string>[];
+  }> {
+    try {
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find purchasing sheet
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames =
+        metadataResponse.data.sheets?.map((s: any) => s.properties?.title) ||
+        [];
+      console.log(`📋 Available sheets: ${sheetNames.join(", ")}`);
+
+      // Find the purchasing sheet
+      let sheetName = sheetNames.find((name: string) =>
+        name.toLowerCase().includes("purchasing"),
+      ) || "Purchasing";
+
+      console.log(`🎯 Reading from Purchasing sheet: "${sheetName}"`);
+
+      // Get headers (29 columns: A-AC as requested)
+      const headerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `'${sheetName}'!A1:AC1`,
+      });
+
+      // Get data (29 columns: A2-AC as requested)
+      const dataResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `'${sheetName}'!A2:AC`,
+      });
+
+      const headers = headerResponse.data.values?.[0] || [];
+      const rows = dataResponse.data.values || [];
+
+      // Filter out rows with empty Product Name or ASIN
+      const validRows = rows.filter((row: string[]) => {
+        const productName = row[4]; // Column E (Product Name)
+        const asin = row[5]; // Column F (ASIN)
+        return productName && productName.trim() !== '' && asin && asin.trim() !== '';
+      });
+
+      console.log(`📦 Found ${rows.length} total items, ${validRows.length} items after filtering out empty Product Name/ASIN`);
+
+      // Convert rows to objects with header keys, and clean currency values
+      const items = validRows.map((row: string[]) => {
+        const item: Record<string, string> = {};
+        headers.forEach((header: string, index: number) => {
+          let value = row[index] || "";
+          
+          // Clean European currency format for numeric columns
+          if (value && (header.includes('Price') || header.includes('Profit') || header.includes('Cost') || 
+                       header.includes('Buy Box') || header.includes('Revenue') || header.includes('Spent') ||
+                       header.includes('Transfer') || header.includes('VAT'))) {
+            // Remove €, spaces, and convert comma decimal separator to dot
+            value = value.replace(/[€$£¥₹]/g, "")
+                        .replace(/\s/g, "")
+                        .replace(/,/g, ".");
+          }
+          
+          item[header] = value;
+        });
+        return item;
+      });
+      
+      return { headers, items };
+    } catch (error) {
+      console.error("Error reading purchasing sheet:", error);
+      throw error;
+    }
+  }
+
+  async updatePurchasingStatus(rowIndex: number, newValue: string) {
+    try {
+      console.log(`🔄 Updating Purchasing Status for row ${rowIndex + 2} to "${newValue}"`);
+
+      const sheets = await this.getSheets();
+
+      // Get sheet metadata to find purchasing sheet
+      const metadataResponse = await sheets.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+
+      const sheetNames = metadataResponse.data.sheets?.map((s: any) => s.properties?.title) || [];
+
+      // Find the purchasing sheet
+      let sheetName = sheetNames.find((name: string) => name.toLowerCase().includes("purchasing")) || "Purchasing";
+
+      console.log(`🎯 Updating Purchasing Status in sheet: "${sheetName}"`);
+
+      // Status is column V (22nd column)
+      const columnLetter = "V";
+      const cellRange = `'${sheetName}'!${columnLetter}${rowIndex + 2}`;
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: cellRange,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[newValue]],
+        },
+      });
+
+      console.log(`✅ Successfully updated Purchasing Status at ${cellRange} to "${newValue}"`);
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Status:", error);
+      throw error;
+    }
+  }
 }
 
 // Export utility functions for external use
