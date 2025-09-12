@@ -763,6 +763,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // === PrepMyBusiness API Routes ===
   
+  // Test PrepMyBusiness API connection
+  app.get('/api/purchasing/test-prepmybusiness', isAuthenticated, async (req, res) => {
+    try {
+      const apiUrl = "https://portal.beeprep.de/api";
+      const apiKey = process.env.PREPMYBUSINESS_API_KEY;
+      const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
+
+      if (!apiKey || !merchantId) {
+        return res.status(500).json({ 
+          message: 'PrepMyBusiness API credentials not configured' 
+        });
+      }
+
+      // Test different endpoints to see what's available
+      const testEndpoints = [
+        `${apiUrl}/health`,
+        `${apiUrl}/status`, 
+        `${apiUrl}/v1`,
+        `${apiUrl}/merchants`,
+        `${apiUrl}/products`,
+        `${apiUrl}/shipments`,
+      ];
+
+      const results = [];
+      
+      for (const endpoint of testEndpoints) {
+        try {
+          console.log(`🔍 Testing endpoint: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'X-Merchant-ID': merchantId,
+              'Accept': 'application/json',
+            },
+          });
+
+          results.push({
+            endpoint,
+            status: response.status,
+            ok: response.ok,
+            contentType: response.headers.get('content-type')
+          });
+        } catch (error) {
+          results.push({
+            endpoint,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({ 
+        success: true,
+        message: 'API endpoint test completed',
+        results,
+        credentials: {
+          apiUrl,
+          hasApiKey: !!apiKey,
+          hasMerchantId: !!merchantId,
+        }
+      });
+
+    } catch (error) {
+      console.error('Error testing PrepMyBusiness API:', error);
+      res.status(500).json({ 
+        message: 'Failed to test API connection',
+        error: error.message 
+      });
+    }
+  });
+  
   // Create shipment via PrepMyBusiness API
   app.post('/api/purchasing/create-shipment', isAuthenticated, async (req, res) => {
     try {
@@ -795,25 +866,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('🚛 Creating PrepMyBusiness shipment:', shipmentPayload);
 
-      // Make API call to PrepMyBusiness
-      const response = await fetch(`${apiUrl}/shipments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'X-Merchant-ID': merchantId,
-        },
-        body: JSON.stringify(shipmentPayload),
-      });
+      // Try different possible API endpoints
+      const possibleEndpoints = [
+        `${apiUrl}/shipment`, // singular
+        `${apiUrl}/create-shipment`,
+        `${apiUrl}/v1/shipments`, 
+        `${apiUrl}/inbound/shipments`,
+        `${apiUrl}/shipments/create`,
+        `${apiUrl}/api/shipments`,
+      ];
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ PrepMyBusiness API error:', response.status, errorText);
-        return res.status(response.status).json({ 
-          message: `PrepMyBusiness API error: ${response.status}`,
-          details: errorText 
+      let response;
+      let lastError;
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`🔍 Trying endpoint: ${endpoint}`);
+          response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'X-Merchant-ID': merchantId,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(shipmentPayload),
+          });
+
+          if (response.ok) {
+            console.log(`✅ Success with endpoint: ${endpoint}`);
+            break;
+          } else if (response.status !== 404) {
+            // If it's not a 404, it means the endpoint exists but there's another issue
+            console.log(`⚠️  Endpoint ${endpoint} exists but returned ${response.status}`);
+            break;
+          } else {
+            console.log(`❌ Endpoint ${endpoint} returned 404`);
+          }
+        } catch (error) {
+          console.log(`❌ Error with endpoint ${endpoint}:`, error.message);
+          lastError = error;
+        }
+      }
+
+      if (!response || !response.ok) {
+        const errorText = response ? await response.text() : 'No valid endpoint found';
+        console.error('❌ PrepMyBusiness API error after trying all endpoints:', response?.status, errorText);
+        
+        return res.status(422).json({ 
+          success: false,
+          message: 'PrepMyBusiness API Integration Issue',
+          details: `All tested API endpoints returned 404 errors. This suggests the API structure might be different than expected.`,
+          error: {
+            lastStatus: response?.status || 'No response',
+            testedEndpoints: possibleEndpoints,
+            recommendation: 'Please check the PrepMyBusiness API documentation for the correct endpoint structure'
+          },
+          nextSteps: [
+            'Verify the API base URL: https://portal.beeprep.de/api',
+            'Check if API credentials are correct',
+            'Confirm the exact endpoint path for creating shipments',
+            'Verify required request headers and authentication method'
+          ]
         });
       }
+
 
       const shipmentResult = await response.json();
       console.log('✅ Shipment created successfully:', shipmentResult);
