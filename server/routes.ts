@@ -732,6 +732,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/purchasing/update-status', isAuthenticated, async (req, res) => {
+    try {
+      const { rowIndex, status } = req.body;
+
+      if (typeof rowIndex !== 'number' || rowIndex < 0) {
+        return res.status(400).json({ message: "Invalid row index" });
+      }
+
+      if (!status || status.trim() === '') {
+        return res.status(400).json({ message: "Status is required" });
+      }
+
+      console.log(`🔄 Updating Purchasing Status for row ${rowIndex} to "${status}"`);
+      
+      const result = await googleSheetsService.updatePurchasingStatus(rowIndex, status);
+      
+      res.json({
+        success: true,
+        message: `Status updated to "${status}"`,
+        data: result
+      });
+    } catch (error) {
+      console.error("❌ Error updating Purchasing Status:", error);
+      res.status(500).json({ 
+        message: "Failed to update status"
+      });
+    }
+  });
+
   // Purchasing Files Endpoints
   app.post('/api/purchasing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
@@ -814,8 +843,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Items must be an array' });
       }
 
-      await storage.savePurchasingItems(items, userId);
-      res.json({ success: true, saved: items.length });
+      // Clean European currency format from all items before saving
+      const cleanedItems = items.map(item => {
+        const cleanedItem = { ...item };
+        
+        // Clean currency values for numeric fields
+        const numericFields = ['costPrice', 'salePrice', 'profit', 'profitMargin', 'roi', 'buyBoxAverage', 'revenue', 'spent', 'transfer', 'woVat'];
+        
+        numericFields.forEach(field => {
+          if (cleanedItem[field] && typeof cleanedItem[field] === 'string') {
+            // Remove €, spaces, and convert comma decimal separator to dot
+            cleanedItem[field] = cleanedItem[field]
+              .replace(/[€$£¥₹]/g, "")
+              .replace(/\s/g, "")
+              .replace(/,/g, ".");
+          }
+        });
+        
+        return cleanedItem;
+      });
+
+      await storage.savePurchasingItems(cleanedItems, userId);
+      res.json({ success: true, saved: cleanedItems.length });
 
     } catch (error) {
       console.error('Error saving purchasing items:', error);
