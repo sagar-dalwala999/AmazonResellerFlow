@@ -543,6 +543,57 @@ export default function PurchasingInbox() {
     },
   });
 
+  // Create Amazon Listing
+  const createAmazonListing = useMutation({
+    mutationFn: async ({
+      asin,
+      productName,
+      price,
+    }: {
+      asin: string;
+      productName: string;
+      price?: string;
+    }) => {
+      return apiRequest("/api/purchasing/create-amazon-listing", "POST", {
+        asin,
+        productName,
+        price,
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        description: `Amazon listing created successfully. SKU: ${data.sku}`,
+      });
+      
+      // Refresh the data to show updated status
+      queryClient.invalidateQueries({ queryKey: ["/api/purchasing/sheets"] });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          variant: "destructive",
+          description: "Session expired. Please log in again.",
+        });
+        window.location.href = "/api/login";
+        return;
+      }
+
+      // Handle admin-only access
+      if (error.message?.includes("Admin role required")) {
+        toast({
+          variant: "destructive",
+          description: "Access denied. Only administrators can create Amazon listings.",
+        });
+        return;
+      }
+
+      toast({
+        variant: "destructive",
+        description: error.message || "Failed to create Amazon listing",
+      });
+    },
+  });
+
   // Auto-save items to database when data changes
   React.useEffect(() => {
     if (validItems.length > 0 && !isLoading && user) {
@@ -1419,11 +1470,18 @@ export default function PurchasingInbox() {
                                   variant="outline"
                                   size="sm"
                                   className="text-xs bg-amber-600 hover:bg-amber-500  text-white hover:text-white"
-                                  onClick={() => {}}
-                                  data-testid={`delete-${index}`}
+                                  onClick={() => {
+                                    createAmazonListing.mutate({
+                                      asin: item["ASIN"] || "",
+                                      productName: item["Product Name"] || "",
+                                      price: item["Sale Price"] || "",
+                                    });
+                                  }}
+                                  disabled={createAmazonListing.isPending}
+                                  data-testid={`amazon-listing-${index}`}
                                 >
                                   <Box className="w-4 h-4" />
-                                  Amzaon Listing
+                                  {createAmazonListing.isPending ? "Creating..." : "Amazon Listing"}
                                 </Button>
                                 <Button
                                   variant="outline"

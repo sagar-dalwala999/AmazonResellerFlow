@@ -912,7 +912,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // STEP 2: Create shipment
       const shipmentPayload = {
         name: productName,
-        notes: `Automated shipment for ASIN: ${asin}`
+        notes: `Automated shipment for ASIN: ${asin}`,
+        warehouse_id: '477'
       };
 
       console.log('🚢 Step 2: Creating shipment:', shipmentPayload);
@@ -947,6 +948,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         shipmentId = shipmentResult.data.id;
       } else if (shipmentResult.shipment?.id) {
         shipmentId = shipmentResult.shipment.id;
+      } else if (shipmentResult.shipment_id) {  // Add this block
+        shipmentId = shipmentResult.shipment_id;
       } else {
         console.error('❌ Unexpected shipment response structure:', shipmentResult);
         return res.status(500).json({ 
@@ -955,6 +958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           response: shipmentResult
         });
       }
+
       
       console.log('✅ Step 2: Shipment created successfully with ID:', shipmentId);
 
@@ -1620,6 +1624,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: 'Failed to delete file',
         error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Amazon SP-API Listing Creation
+  app.post('/api/purchasing/create-amazon-listing', isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin (only admins can create Amazon listings)
+      const userRole = req.user?.claims?.role;
+      if (userRole !== 'admin') {
+        return res.status(403).json({ 
+          message: 'Access denied. Admin role required to create Amazon listings.' 
+        });
+      }
+
+      const { asin, productName, price, sku } = req.body;
+      
+      if (!asin || !productName) {
+        return res.status(400).json({ 
+          message: 'ASIN and product name are required' 
+        });
+      }
+
+      console.log('🌐 Starting Amazon SP-API listing creation for:', {
+        asin,
+        productName: productName.substring(0, 50) + '...',
+        price,
+        sku: sku || `SKU-${asin}-${Date.now()}`
+      });
+
+      // Import aws4 for SigV4 signing
+      const aws4 = require('aws4');
+
+      // Step 1: Get access token using refresh token
+      const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
+          client_id: process.env.AMAZON_SP_CLIENT_ID!,
+          client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        console.error('❌ Amazon token request failed with status:', tokenResponse.status);
+        return res.status(500).json({
+          message: 'Failed to get Amazon access token',
+          status: tokenResponse.status
+        });
+      }
+
+      const tokenResult = await tokenResponse.json();
+      const accessToken = tokenResult.access_token;
+      console.log('✅ Step 1: Access token obtained successfully');
+
+      // Step 2: Create the listing using Listings API with proper SigV4 signing
+      const listingSku = sku || `SKU-${asin}-${Date.now()}`;
+      const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace
+      
+      // Prepare listing data with correct structure
+      const listingData = {
+        productType: 'PRODUCT',
+        requirements: 'LISTING_PRODUCT_ONLY',
+        attributes: {
+          condition_type: [{
+            value: 'new_new',
+            marketplace_id: marketplaceId
+          }],
+          item_name: [{
+            value: productName,
+            marketplace_id: marketplaceId
+          }]
+        }
+      };
+
+      // Add price if provided
+      if (price) {
+        const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
+        if (!isNaN(priceValue)) {
+          listingData.attributes.list_price = [{
+            value: { Amount: priceValue, CurrencyCode: 'EUR' },
+            marketplace_id: marketplaceId
+          }];
+        }
+      }
+
+      const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
+      const url = new URL(endpoint);
+      url.searchParams.append('marketplaceIds', marketplaceId);
+
+      // Prepare request for SigV4 signing
+      const requestOptions = {
+        host: url.hostname,
+        path: url.pathname + url.search,
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-amz-access-token': accessToken,
+        },
+        body: JSON.stringify(listingData),
+        service: 'execute-api',
+        region: 'eu-west-1'
+      };
+
+      // Note: For proper SigV4 signing, AWS credentials would be needed
+      // Since we're using LWA (Login with Amazon) tokens, we'll make a direct request
+      // This is a simplified implementation - production should use official Amazon SP-API SDK
+      const listingResponse = await fetch(url.toString(), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-amz-access-token': accessToken,
+        },
+        body: JSON.stringify(listingData),
+      });
+
+      let listingResult;
+      try {
+        listingResult = await listingResponse.json();
+      } catch (e) {
+        listingResult = await listingResponse.text();
+      }
+
+      console.log('📝 Step 2: Amazon listing API response status:', listingResponse.status);
+      console.log('📝 Step 2: Amazon listing API response:', JSON.stringify(listingResult, null, 2));
+
+      if (!listingResponse.ok) {
+        console.error('❌ Amazon listing creation failed with status:', listingResponse.status);
+        return res.status(500).json({
+          message: 'Failed to create Amazon listing',
+          status: listingResponse.status,
+          details: typeof listingResult === 'object' ? listingResult : 'Invalid response format'
+        });
+      }
+
+      console.log('✅ Step 2: Amazon listing created successfully');
+
+      res.json({
+        success: true,
+        message: 'Amazon listing created successfully',
+        sku: listingSku,
+        marketplace: marketplaceId,
+        response: listingResult
+      });
+
+    } catch (error) {
+      console.error('❌ Error creating Amazon listing:', error);
+      res.status(500).json({
+        message: 'Failed to create Amazon listing',
+        error: error.message
       });
     }
   });
