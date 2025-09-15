@@ -860,6 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // STEP 1: Create inventory item
       const merchantSku = `SKU-${asin}-${Date.now()}`;
+      
       const inventoryPayload = {
         merchant_sku: merchantSku,
         title: productName,
@@ -1640,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //   });
       // }
 
-      const { asin, productName, price, brand } = req.body;
+      const { asin, productName, price, buyPrice, brand } = req.body;
 
       if (!asin || !productName) {
         return res.status(400).json({ 
@@ -1664,7 +1665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const today = new Date();
       const dateString = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
       const cleanBrand = brand.replace(/[^a-zA-Z0-9]/g, ''); // Remove special characters
-      const cleanPrice = parseFloat(price.toString().replace(/[€,$]/g, '')).toFixed(2).replace('.', ''); // Remove currency and decimal
+      const cleanPrice = parseFloat(buyPrice.toString().replace(/[€,$]/g, '')).toFixed(2).replace('.', ''); // Remove currency and decimal
       const generatedSku = `${cleanBrand}_${cleanPrice}_${dateString}_${asin}`;
 
       console.log('🌐 Starting Amazon SP-API listing creation for:', {
@@ -1672,6 +1673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         brand,
         productName: productName.substring(0, 50) + '...',
         price,
+        buyPrice,
         generatedSku,
       });
 
@@ -1704,13 +1706,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accessToken = tokenResult.access_token;
       console.log('✅ Step 1: Access token obtained successfully', accessToken);
 
-      // Step 2: Create the listing using Listings API (no AWS SigV4 signing needed)
+      // Step 2: Get product type using Product Type Definitions API
       const listingSku = generatedSku;
       const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace
 
-      // Simplified listing data structure
+      console.log('🔍 Step 2: Fetching product types from Amazon...');
+      let productType = 'LUGGAGE'; // Default fallback product type
+
+      try {
+        // Fetch product types from Amazon Product Type Definitions API
+        const productTypesResponse = await fetch(
+          `https://sellingpartnerapi-eu.amazon.com/definitions/2020-09-01/productTypes?marketplaceIds=${marketplaceId}`,
+          {
+            method: 'GET',
+            headers: {
+              'x-amz-access-token': accessToken,
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (productTypesResponse.ok) {
+          const productTypesResult = await productTypesResponse.json();
+          console.log('📋 Available product types count:', productTypesResult.productTypes?.length || 0);
+          
+          // Try to find appropriate product types based on the product name
+          const productNameLower = productName.toLowerCase();
+          const availableTypes = productTypesResult.productTypes || [];
+          
+          // Look for lighting/LED related product types
+          const lightingTypes = availableTypes.filter((pt: any) => 
+            pt.name && (
+              pt.name.toLowerCase().includes('lighting') ||
+              pt.name.toLowerCase().includes('light') ||
+              pt.name.toLowerCase().includes('lamp') ||
+              pt.name.toLowerCase().includes('led') ||
+              pt.name.toLowerCase().includes('electrical')
+            )
+          );
+
+          if (lightingTypes.length > 0) {
+            productType = lightingTypes[0].name;
+            console.log('✅ Found lighting product type:', productType);
+          } else {
+            // Look for generic types that work for most products
+            const genericTypes = availableTypes.filter((pt: any) => 
+              pt.name && (
+                pt.name === 'LUGGAGE' ||
+                pt.name === 'HOME' ||
+                pt.name === 'CE_LIGHTING' ||
+                pt.name === 'TOOLS'
+              )
+            );
+
+            if (genericTypes.length > 0) {
+              productType = genericTypes[0].name;
+              console.log('✅ Using generic product type:', productType);
+            } else if (availableTypes.length > 0) {
+              productType = availableTypes[0].name;
+              console.log('✅ Using first available product type:', productType);
+            }
+          }
+        } else {
+          console.log('⚠️ Could not fetch product types, using fallback:', productType);
+        }
+      } catch (error) {
+        console.log('⚠️ Error fetching product types, using fallback:', productType, error);
+      }
+
+      // Step 3: Create the listing using Listings API
       const listingData: any = {
-        productType: 'PRODUCT',
+        productType: productType,
         requirements: 'LISTING',
         attributes: {
           condition_type: [{
@@ -1737,8 +1803,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const url = new URL(endpoint);
       url.searchParams.append('marketplaceIds', marketplaceId);
 
-      console.log('📡 Making SP-API request to:', url.toString());
-      console.log('📦 Request payload:', JSON.stringify(listingData, null, 2));
+      console.log('📡 Step 3: Making SP-API request to:', url.toString());
+      console.log('📦 Step 3: Request payload with product type "' + productType + '":', JSON.stringify(listingData, null, 2));
 
       // Make direct request using only LWA access token
       const listingResponse = await fetch(url.toString(), {
@@ -1758,8 +1824,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         listingResult = await listingResponse.text();
       }
 
-      console.log('📝 Step 2: Amazon listing API response status:', listingResponse.status);
-      console.log('📝 Step 2: Amazon listing API response:', JSON.stringify(listingResult, null, 2));
+      console.log('📝 Step 3: Amazon listing API response status:', listingResponse.status);
+      console.log('📝 Step 3: Amazon listing API response:', JSON.stringify(listingResult, null, 2));
 
       if (!listingResponse.ok) {
         console.error('❌ Amazon listing creation failed with status:', listingResponse.status);

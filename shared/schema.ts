@@ -356,6 +356,7 @@ export interface GoogleSheetsSourcingItem {
   'Product Review': string;
   'Notes': string;
   'Sourcing Method': string;
+  'Status'?: string;
 }
 export type Sourcing = typeof sourcing.$inferSelect;
 export type PurchasingPlan = typeof purchasingPlans.$inferSelect;
