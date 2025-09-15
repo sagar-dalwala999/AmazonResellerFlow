@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
+import aws4 from "aws4";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema, insertSourcingFileSchema } from "@shared/schema";
@@ -1628,7 +1629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Amazon SP-API Listing Creation
+  // Amazon SP-API Listing Creation (using only LWA tokens, no AWS credentials needed)
   app.post('/api/purchasing/create-amazon-listing', isAuthenticated, async (req: any, res) => {
     try {
       // Check if user is admin (only admins can create Amazon listings)
@@ -1640,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { asin, productName, price, sku } = req.body;
-      
+
       if (!asin || !productName) {
         return res.status(400).json({ 
           message: 'ASIN and product name are required' 
@@ -1651,16 +1652,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         asin,
         productName: productName.substring(0, 50) + '...',
         price,
-        sku: sku || `SKU-${asin}-${Date.now()}`
+        sku: sku || `SKU-${asin}-${Date.now()}`,
       });
-
-      // Import aws4 for SigV4 signing
-      const aws4 = require('aws4');
 
       // Step 1: Get access token using refresh token
       const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
@@ -1675,7 +1673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('❌ Amazon token request failed with status:', tokenResponse.status);
         return res.status(500).json({
           message: 'Failed to get Amazon access token',
-          status: tokenResponse.status
+          status: tokenResponse.status,
         });
       }
 
@@ -1683,24 +1681,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accessToken = tokenResult.access_token;
       console.log('✅ Step 1: Access token obtained successfully');
 
-      // Step 2: Create the listing using Listings API with proper SigV4 signing
+      // Step 2: Create the listing using Listings API (no AWS SigV4 signing needed)
       const listingSku = sku || `SKU-${asin}-${Date.now()}`;
       const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace
-      
-      // Prepare listing data with correct structure
+
+      // Simplified listing data structure
       const listingData = {
         productType: 'PRODUCT',
-        requirements: 'LISTING_PRODUCT_ONLY',
+        requirements: 'LISTING',
         attributes: {
           condition_type: [{
             value: 'new_new',
-            marketplace_id: marketplaceId
+            marketplace_id: marketplaceId,
           }],
           item_name: [{
             value: productName,
-            marketplace_id: marketplaceId
-          }]
-        }
+            marketplace_id: marketplaceId,
+          }],
+        },
       };
 
       // Add price if provided
@@ -1709,7 +1707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!isNaN(priceValue)) {
           listingData.attributes.list_price = [{
             value: { Amount: priceValue, CurrencyCode: 'EUR' },
-            marketplace_id: marketplaceId
+            marketplace_id: marketplaceId,
           }];
         }
       }
@@ -1718,28 +1716,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const url = new URL(endpoint);
       url.searchParams.append('marketplaceIds', marketplaceId);
 
-      // Prepare request for SigV4 signing
-      const requestOptions = {
-        host: url.hostname,
-        path: url.pathname + url.search,
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-amz-access-token': accessToken,
-        },
-        body: JSON.stringify(listingData),
-        service: 'execute-api',
-        region: 'eu-west-1'
-      };
+      console.log('📡 Making SP-API request to:', url.toString());
+      console.log('📦 Request payload:', JSON.stringify(listingData, null, 2));
 
-      // Note: For proper SigV4 signing, AWS credentials would be needed
-      // Since we're using LWA (Login with Amazon) tokens, we'll make a direct request
-      // This is a simplified implementation - production should use official Amazon SP-API SDK
+      // Make direct request using only LWA access token
       const listingResponse = await fetch(url.toString(), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'x-amz-access-token': accessToken,
+          'Accept': 'application/json',
         },
         body: JSON.stringify(listingData),
       });
@@ -1759,28 +1745,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({
           message: 'Failed to create Amazon listing',
           status: listingResponse.status,
-          details: typeof listingResult === 'object' ? listingResult : 'Invalid response format'
+          details: typeof listingResult === 'object' ? listingResult : 'Invalid response format',
         });
       }
 
       console.log('✅ Step 2: Amazon listing created successfully');
-
       res.json({
         success: true,
         message: 'Amazon listing created successfully',
         sku: listingSku,
         marketplace: marketplaceId,
-        response: listingResult
+        response: listingResult,
       });
 
     } catch (error) {
       console.error('❌ Error creating Amazon listing:', error);
       res.status(500).json({
         message: 'Failed to create Amazon listing',
-        error: error.message
+        error: error.message,
       });
     }
   });
+
 
   const httpServer = createServer(app);
   return httpServer;
