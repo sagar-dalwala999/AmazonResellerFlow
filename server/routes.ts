@@ -10,6 +10,12 @@ import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema, 
 import { googleSheetsService, parseMoneySmart, parsePercentMaybe, parseNumericValue, readSourcingSheet } from "./googleSheetsService";
 import { z } from "zod";
 
+// Amazon SP-API SDK imports
+import { 
+  ListingsItemsApiClient,
+  CatalogItemsApiClient
+} from '@scaleleap/selling-partner-api-sdk';
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
   const uploadStorage = multer.diskStorage({
@@ -1679,95 +1685,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('📝 Generated SKU:', generatedSku);
 
-      // Step 1: Get access token using refresh token
-      const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
-          client_id: process.env.AMAZON_SP_CLIENT_ID!,
-          client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
-        }),
-      });
-      if (!tokenResponse.ok) {
-        console.error('❌ Amazon token request failed with status:', tokenResponse.status);
-        return res.status(500).json({
-          message: 'Failed to get Amazon access token',
-          status: tokenResponse.status,
-        });
-      }
-
-      const tokenResult = await tokenResponse.json();
-      console.log("Token Response : ", tokenResult);
-
-      const accessToken = tokenResult.access_token;
-      console.log('✅ Step 1: Access token obtained successfully', accessToken);
-
-      // Step 2: Get product type using Catalog Items API
-      const listingSku = generatedSku;
+      // Step 1: Initialize Amazon SP-API SDK Configuration
+      const region = 'eu'; // European region
       const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace (primary for Europe)
+      
+      // SDK configuration for European marketplace
+      const sdkConfig = {
+        region: 'eu' as const,
+        credentials: {
+          SELLING_PARTNER_APP_CLIENT_ID: process.env.AMAZON_SP_CLIENT_ID!,
+          SELLING_PARTNER_APP_CLIENT_SECRET: process.env.AMAZON_SP_CLIENT_SECRET!,
+        },
+        refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
+        options: {
+          auto_request_tokens: true,
+          auto_request_throttled: true,
+          use_sandbox: false
+        }
+      };
 
-      console.log('🔍 Step 2: Determining product type...');
+      console.log('🔧 Initializing Amazon SP-API SDK for European marketplace...');
+
+      // Step 2: Get product type using Catalog Items API SDK
+      const listingSku = generatedSku;
+
+      console.log('🔍 Step 2: Determining product type using SDK...');
       let productType = 'LUGGAGE'; // Safe fallback product type
       let catalogFailed = false;
 
-      // First, try Catalog Items API (if permissions allow)
+      // Try Catalog Items API SDK (if permissions allow)
       try {
-        console.log('🔍 Trying Catalog Items API for ASIN:', asin);
-        const catalogResponse = await fetch(
-          `https://sellingpartnerapi-eu.amazon.com/catalog/2022-04-01/items?MarketplaceId=${marketplaceId}&Query=${asin}&QueryType=ASIN`,
-          {
-            method: 'GET',
-            headers: {
-              'x-amz-access-token': accessToken,
-              'Accept': 'application/json',
-            },
-          }
-        );
+        console.log('🔍 Trying Catalog Items API SDK for ASIN:', asin);
+        
+        // Initialize Catalog API client with SDK
+        const catalogClient = new CatalogItemsApiClient(sdkConfig);
+        
+        // Get catalog item information by ASIN
+        const catalogResponse = await catalogClient.getCatalogItem({
+          asin: asin,
+          marketplaceIds: [marketplaceId],
+          includedData: ['productTypes', 'classifications']
+        });
 
-        if (catalogResponse.ok) {
-          const catalogData = await catalogResponse.json();
-          console.log('📦 Catalog API successful - extracting product type...');
+        if (catalogResponse?.asin === asin) {
+          console.log('📦 Catalog API SDK successful - extracting product type...');
           
-          // Extract product type from catalog data
-          if (catalogData.Items && catalogData.Items.length > 0) {
-            const item = catalogData.Items[0];
-            
-            // Try to get product type from various catalog fields
-            let detectedType = null;
-            
-            if (item.ProductTypes && item.ProductTypes.length > 0) {
-              detectedType = item.ProductTypes[0];
-            } else if (item.ItemClassification && item.ItemClassification.ProductType) {
-              detectedType = item.ItemClassification.ProductType;
-            } else if (item.BrowseClassification && item.BrowseClassification.ProductType) {
-              detectedType = item.BrowseClassification.ProductType;
-            }
-            
-            if (detectedType) {
-              productType = detectedType;
-              console.log('✅ Catalog API: Detected product type:', productType);
-            }
+          // Extract product type from SDK response
+          let detectedType = null;
+          
+          if (catalogResponse.productTypes && catalogResponse.productTypes.length > 0) {
+            detectedType = catalogResponse.productTypes[0];
+          } else if (catalogResponse.classifications?.item?.productType) {
+            detectedType = catalogResponse.classifications.item.productType;
           }
-        } else {
-          const errorText = await catalogResponse.text();
-          console.log('⚠️ Catalog API failed:', catalogResponse.status, errorText);
-          if (catalogResponse.status === 403) {
-            console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
-            console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
-            console.log('🔄 Falling back to intelligent product type detection...');
-            catalogFailed = true;
+          
+          if (detectedType) {
+            productType = detectedType;
+            console.log('✅ Catalog API SDK: Detected product type:', productType);
+            catalogFailed = false;
           }
         }
-      } catch (error) {
-        console.error('❌ Catalog API error:', error);
+      } catch (error: any) {
+        console.error('❌ Catalog API SDK error:', error?.message || error);
+        if (error?.response?.status === 403) {
+          console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
+          console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
+        }
         catalogFailed = true;
       }
 
-      // Fallback: Intelligent product type detection based on product name/category
+      // Fallback: Intelligent product type detection based on product name
       if (catalogFailed || productType === 'LUGGAGE') {
         console.log('🧠 Using intelligent product type detection for:', productName);
         
@@ -1797,76 +1784,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Step 3: Create the listing using Listings API
-      const listingData: any = {
-        productType: productType,
-        requirements: 'LISTING',
-        attributes: {
-          condition_type: [{
-            value: 'new_new',
-            marketplace_id: marketplaceId,
-          }],
-          item_name: [{
-            value: productName,
-            marketplace_id: marketplaceId,
-          }],
-        },
-      };
+      // Step 3: Create the listing using Listings API SDK
+      console.log('📡 Step 3: Creating Amazon listing using SDK...');
 
-      // Add price if provided
-      const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
-      if (!isNaN(priceValue)) {
-        listingData.attributes.list_price = [{
-          value: { Amount: priceValue, CurrencyCode: 'EUR' },
-          marketplace_id: marketplaceId,
-        }];
-      }
-
-      const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
-      const url = new URL(endpoint);
-      url.searchParams.append('marketplaceIds', marketplaceId);
-
-      console.log('📡 Step 3: Making SP-API request to:', url.toString());
-      console.log('📦 Step 3: Request payload with product type "' + productType + '":', JSON.stringify(listingData, null, 2));
-
-      // Make direct request using only LWA access token
-      const listingResponse = await fetch(url.toString(), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-amz-access-token': accessToken,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(listingData),
-      });
-
-      let listingResult;
       try {
-        listingResult = await listingResponse.json();
-      } catch (e) {
-        listingResult = await listingResponse.text();
-      }
+        // Initialize Listings API client with SDK
+        const listingsClient = new ListingsItemsApiClient(sdkConfig);
 
-      console.log('📝 Step 3: Amazon listing API response status:', listingResponse.status);
-      console.log('📝 Step 3: Amazon listing API response:', JSON.stringify(listingResult, null, 2));
+        // Prepare listing data for SDK
+        const listingData: any = {
+          productType: productType,
+          requirements: 'LISTING',
+          attributes: {
+            condition_type: [{
+              value: 'new_new',
+              marketplace_id: marketplaceId,
+            }],
+            item_name: [{
+              value: productName,
+              marketplace_id: marketplaceId,
+            }],
+          },
+        };
 
-      if (!listingResponse.ok) {
-        console.error('❌ Amazon listing creation failed with status:', listingResponse.status);
+        // Add price if provided
+        const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
+        if (!isNaN(priceValue)) {
+          listingData.attributes.list_price = [{
+            value: { Amount: priceValue, CurrencyCode: 'EUR' },
+            marketplace_id: marketplaceId,
+          }];
+        }
+
+        console.log('📦 Step 3: SDK Request payload with product type "' + productType + '":', JSON.stringify(listingData, null, 2));
+
+        // Create listing using SDK
+        const listingResult = await listingsClient.putListingsItem({
+          sellerId: process.env.AMAZON_SP_SELLER_ID!,
+          sku: listingSku,
+          marketplaceIds: [marketplaceId],
+          body: listingData,
+        });
+
+        console.log('📝 Step 3: Amazon listing SDK response:', JSON.stringify(listingResult, null, 2));
+
+        console.log('✅ Step 3: Amazon listing created successfully using SDK');
+        res.json({
+          success: true,
+          message: 'Amazon listing created successfully using SDK',
+          sku: listingSku,
+          marketplace: marketplaceId,
+          response: listingResult,
+        });
+
+      } catch (listingError: any) {
+        console.error('❌ Amazon listing creation failed with SDK:', listingError?.message || listingError);
         return res.status(500).json({
-          message: 'Failed to create Amazon listing',
-          status: listingResponse.status,
-          details: typeof listingResult === 'object' ? listingResult : 'Invalid response format',
+          message: 'Failed to create Amazon listing using SDK',
+          error: listingError?.message || 'Unknown error',
+          details: listingError?.response?.data || listingError,
         });
       }
-
-      console.log('✅ Step 2: Amazon listing created successfully');
-      res.json({
-        success: true,
-        message: 'Amazon listing created successfully',
-        sku: listingSku,
-        marketplace: marketplaceId,
-        response: listingResult,
-      });
 
     } catch (error) {
       console.error('❌ Error creating Amazon listing:', error);
