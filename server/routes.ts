@@ -1710,13 +1710,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const listingSku = generatedSku;
       const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace (primary for Europe)
 
-      console.log('🔍 Step 2: Fetching product catalog info from Amazon using ASIN...');
-      let productType = 'LUGGAGE'; // Default fallback product type
+      console.log('🔍 Step 2: Determining product type...');
+      let productType = 'LUGGAGE'; // Safe fallback product type
+      let catalogFailed = false;
 
+      // First, try Catalog Items API (if permissions allow)
       try {
-        // Use Catalog Items API to get product information by ASIN
+        console.log('🔍 Trying Catalog Items API for ASIN:', asin);
         const catalogResponse = await fetch(
-          `https://sellingpartnerapi-eu.amazon.com/catalog/v0/items?MarketplaceId=${marketplaceId}&Query=${asin}&QueryType=ASIN`,
+          `https://sellingpartnerapi-eu.amazon.com/catalog/2022-04-01/items?MarketplaceId=${marketplaceId}&Query=${asin}&QueryType=ASIN`,
           {
             method: 'GET',
             headers: {
@@ -1728,7 +1730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (catalogResponse.ok) {
           const catalogData = await catalogResponse.json();
-          console.log('📦 Catalog data from Amazon:', JSON.stringify(catalogData, null, 2));
+          console.log('📦 Catalog API successful - extracting product type...');
           
           // Extract product type from catalog data
           if (catalogData.Items && catalogData.Items.length > 0) {
@@ -1737,7 +1739,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Try to get product type from various catalog fields
             let detectedType = null;
             
-            // Check for product type in various possible fields
             if (item.ProductTypes && item.ProductTypes.length > 0) {
               detectedType = item.ProductTypes[0];
             } else if (item.ItemClassification && item.ItemClassification.ProductType) {
@@ -1748,21 +1749,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (detectedType) {
               productType = detectedType;
-              console.log('✅ Detected product type from catalog:', productType);
-            } else {
-              console.log('⚠️ No product type found in catalog, using fallback:', productType);
+              console.log('✅ Catalog API: Detected product type:', productType);
             }
-          } else {
-            console.log('⚠️ No catalog items found for ASIN, using fallback:', productType);
           }
         } else {
           const errorText = await catalogResponse.text();
-          console.log('⚠️ Failed to fetch catalog data:', catalogResponse.status, errorText);
-          console.log('🔄 Using fallback product type:', productType);
+          console.log('⚠️ Catalog API failed:', catalogResponse.status, errorText);
+          if (catalogResponse.status === 403) {
+            console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
+            console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
+            console.log('🔄 Falling back to intelligent product type detection...');
+            catalogFailed = true;
+          }
         }
       } catch (error) {
-        console.error('❌ Error fetching catalog data:', error);
-        console.log('🔄 Using fallback product type:', productType);
+        console.error('❌ Catalog API error:', error);
+        catalogFailed = true;
+      }
+
+      // Fallback: Intelligent product type detection based on product name/category
+      if (catalogFailed || productType === 'LUGGAGE') {
+        console.log('🧠 Using intelligent product type detection for:', productName);
+        
+        const productNameLower = productName.toLowerCase();
+        
+        // Smart product type mapping based on keywords
+        if (productNameLower.includes('led') || productNameLower.includes('light') || productNameLower.includes('lamp') || productNameLower.includes('bulb')) {
+          productType = 'CE_LIGHTING';
+          console.log('💡 Detected lighting product, using CE_LIGHTING');
+        } else if (productNameLower.includes('cosmetic') || productNameLower.includes('makeup') || productNameLower.includes('beauty') || productNameLower.includes('skincare')) {
+          productType = 'BEAUTY';
+          console.log('💄 Detected beauty product, using BEAUTY');
+        } else if (productNameLower.includes('tool') || productNameLower.includes('drill') || productNameLower.includes('hammer') || productNameLower.includes('screwdriver')) {
+          productType = 'TOOLS';
+          console.log('🔨 Detected tool product, using TOOLS');
+        } else if (productNameLower.includes('home') || productNameLower.includes('kitchen') || productNameLower.includes('decoration') || productNameLower.includes('furniture')) {
+          productType = 'HOME';
+          console.log('🏠 Detected home product, using HOME');
+        } else if (productNameLower.includes('electronic') || productNameLower.includes('gadget') || productNameLower.includes('device') || productNameLower.includes('tech')) {
+          productType = 'CONSUMER_ELECTRONICS';
+          console.log('📱 Detected electronics, using CONSUMER_ELECTRONICS');
+        } else {
+          // Use safe generic types that work reliably with SP-API
+          const safeTypes = ['HOME', 'LUGGAGE', 'BEAUTY', 'TOOLS'];
+          productType = safeTypes[Math.floor(Math.random() * safeTypes.length)];
+          console.log('🎲 Using random safe product type:', productType);
+        }
       }
 
       // Step 3: Create the listing using Listings API
