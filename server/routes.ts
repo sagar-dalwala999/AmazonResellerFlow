@@ -1713,7 +1713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('🔍 Trying Catalog Items API for ASIN:', asin);
         
         // Get LWA access token first
-        const tokenResponse = await fetch('https://api.amazon.co.uk/auth/o2/token', {
+        const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
