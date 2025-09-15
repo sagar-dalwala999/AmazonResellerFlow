@@ -1708,7 +1708,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Step 2: Get product type using Product Type Definitions API
       const listingSku = generatedSku;
-      const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace
+      
+      // European marketplaces - using Germany as primary with EU support
+      const marketplaceId = 'A1PA6795UKMFR9'; // Germany (primary European marketplace)
+      const europeanMarketplaces = [
+        'A1PA6795UKMFR9', // Germany (amazon.de)
+        'A1F83G8C2ARO7P', // United Kingdom (amazon.co.uk)  
+        'A13V1IB3VIYZZH', // France (amazon.fr)
+        'APJ6JRA9NG5V4',  // Italy (amazon.it)
+        'A1RKKUPIHCS9HS', // Spain (amazon.es)
+      ];
+      
+      console.log('🇪🇺 Using European Amazon marketplaces:', { 
+        primary: marketplaceId, 
+        supported: europeanMarketplaces 
+      });
 
       console.log('🔍 Step 2: Fetching product types from Amazon...');
       let productType = 'LUGGAGE'; // Default fallback product type
@@ -1716,7 +1730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Fetch product types from Amazon Product Type Definitions API
         const productTypesResponse = await fetch(
-          `https://sellingpartnerapi-eu.amazon.com/definitions/2020-09-01/productTypes?marketplaceIds=${marketplaceId}`,
+          `https://sellingpartnerapi-eu.amazon.com/definitions/2020-09-01/productTypes?marketplaceIds=${marketplaceId}&keywords=cosmetics`,
           {
             method: 'GET',
             headers: {
@@ -1733,15 +1747,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Try to find appropriate product types based on the product name
           const productNameLower = productName.toLowerCase();
           const availableTypes = productTypesResult.productTypes || [];
-          
-          // Look for lighting/LED related product types
+          console.log('Available Types', availableTypes);
+          // Look for cosmetics related product types
           const lightingTypes = availableTypes.filter((pt: any) => 
             pt.name && (
-              pt.name.toLowerCase().includes('lighting') ||
-              pt.name.toLowerCase().includes('light') ||
-              pt.name.toLowerCase().includes('lamp') ||
-              pt.name.toLowerCase().includes('led') ||
-              pt.name.toLowerCase().includes('electrical')
+              pt.name.toLowerCase().includes('cosmetic')
             )
           );
 
