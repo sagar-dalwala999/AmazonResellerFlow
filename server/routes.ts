@@ -1680,7 +1680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📝 Generated SKU:', generatedSku);
 
       // Step 1: Get access token using refresh token
-      const tokenResponse = await fetch('https://api.amazon.co.uk/auth/o2/token', {
+      const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -1706,31 +1706,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const accessToken = tokenResult.access_token;
       console.log('✅ Step 1: Access token obtained successfully', accessToken);
 
-      // Step 2: Get product type using Product Type Definitions API
+      // Step 2: Get product type using Catalog Items API
       const listingSku = generatedSku;
-      
-      // European marketplaces - using Germany as primary with EU support
-      const marketplaceId = 'A1PA6795UKMFR9'; // Germany (primary European marketplace)
-      const europeanMarketplaces = [
-        'A1PA6795UKMFR9', // Germany (amazon.de)
-        'A1F83G8C2ARO7P', // United Kingdom (amazon.co.uk)  
-        'A13V1IB3VIYZZH', // France (amazon.fr)
-        'APJ6JRA9NG5V4',  // Italy (amazon.it)
-        'A1RKKUPIHCS9HS', // Spain (amazon.es)
-      ];
-      
-      console.log('🇪🇺 Using European Amazon marketplaces:', { 
-        primary: marketplaceId, 
-        supported: europeanMarketplaces 
-      });
+      const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace (primary for Europe)
 
-      console.log('🔍 Step 2: Fetching product types from Amazon...');
+      console.log('🔍 Step 2: Fetching product catalog info from Amazon using ASIN...');
       let productType = 'LUGGAGE'; // Default fallback product type
 
       try {
-        // Fetch product types from Amazon Product Type Definitions API
-        const productTypesResponse = await fetch(
-          `https://sellingpartnerapi-eu.amazon.com/definitions/2020-09-01/productTypes?marketplaceIds=${marketplaceId}&keywords=cosmetics`,
+        // Use Catalog Items API to get product information by ASIN
+        const catalogResponse = await fetch(
+          `https://sellingpartnerapi-eu.amazon.com/catalog/v0/items?MarketplaceId=${marketplaceId}&Query=${asin}&QueryType=ASIN`,
           {
             method: 'GET',
             headers: {
@@ -1740,48 +1726,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         );
 
-        if (productTypesResponse.ok) {
-          const productTypesResult = await productTypesResponse.json();
-          console.log('📋 Available product types count:', productTypesResult.productTypes?.length || 0);
+        if (catalogResponse.ok) {
+          const catalogData = await catalogResponse.json();
+          console.log('📦 Catalog data from Amazon:', JSON.stringify(catalogData, null, 2));
           
-          // Try to find appropriate product types based on the product name
-          const productNameLower = productName.toLowerCase();
-          const availableTypes = productTypesResult.productTypes || [];
-          console.log('Available Types', availableTypes);
-          // Look for cosmetics related product types
-          const lightingTypes = availableTypes.filter((pt: any) => 
-            pt.name && (
-              pt.name.toLowerCase().includes('cosmetic')
-            )
-          );
-
-          if (lightingTypes.length > 0) {
-            productType = lightingTypes[0].name;
-            console.log('✅ Found lighting product type:', productType);
-          } else {
-            // Look for generic types that work for most products
-            const genericTypes = availableTypes.filter((pt: any) => 
-              pt.name && (
-                pt.name === 'LUGGAGE' ||
-                pt.name === 'HOME' ||
-                pt.name === 'CE_LIGHTING' ||
-                pt.name === 'TOOLS'
-              )
-            );
-
-            if (genericTypes.length > 0) {
-              productType = genericTypes[0].name;
-              console.log('✅ Using generic product type:', productType);
-            } else if (availableTypes.length > 0) {
-              productType = availableTypes[0].name;
-              console.log('✅ Using first available product type:', productType);
+          // Extract product type from catalog data
+          if (catalogData.Items && catalogData.Items.length > 0) {
+            const item = catalogData.Items[0];
+            
+            // Try to get product type from various catalog fields
+            let detectedType = null;
+            
+            // Check for product type in various possible fields
+            if (item.ProductTypes && item.ProductTypes.length > 0) {
+              detectedType = item.ProductTypes[0];
+            } else if (item.ItemClassification && item.ItemClassification.ProductType) {
+              detectedType = item.ItemClassification.ProductType;
+            } else if (item.BrowseClassification && item.BrowseClassification.ProductType) {
+              detectedType = item.BrowseClassification.ProductType;
             }
+            
+            if (detectedType) {
+              productType = detectedType;
+              console.log('✅ Detected product type from catalog:', productType);
+            } else {
+              console.log('⚠️ No product type found in catalog, using fallback:', productType);
+            }
+          } else {
+            console.log('⚠️ No catalog items found for ASIN, using fallback:', productType);
           }
         } else {
-          console.log('⚠️ Could not fetch product types, using fallback:', productType);
+          const errorText = await catalogResponse.text();
+          console.log('⚠️ Failed to fetch catalog data:', catalogResponse.status, errorText);
+          console.log('🔄 Using fallback product type:', productType);
         }
       } catch (error) {
-        console.log('⚠️ Error fetching product types, using fallback:', productType, error);
+        console.error('❌ Error fetching catalog data:', error);
+        console.log('🔄 Using fallback product type:', productType);
       }
 
       // Step 3: Create the listing using Listings API
