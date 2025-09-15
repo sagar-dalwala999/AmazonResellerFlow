@@ -549,15 +549,18 @@ export default function PurchasingInbox() {
       asin,
       productName,
       price,
+      brand,
     }: {
       asin: string;
       productName: string;
       price?: string;
+      brand: string;
     }) => {
       return apiRequest("/api/purchasing/create-amazon-listing", "POST", {
         asin,
         productName,
         price,
+        brand,
       });
     },
     onSuccess: (data: any) => {
@@ -1475,6 +1478,7 @@ export default function PurchasingInbox() {
                                       asin: item["ASIN"] || "",
                                       productName: item["Product Name"] || "",
                                       price: item["Sale Price"] || "",
+                                      brand: item["Brand"] || "",
                                     });
                                   }}
                                   disabled={createAmazonListing.isPending}

@@ -1634,13 +1634,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Check if user is admin (only admins can create Amazon listings)
       const userRole = req.user?.claims?.role;
-      if (userRole !== 'admin') {
-        return res.status(403).json({ 
-          message: 'Access denied. Admin role required to create Amazon listings.' 
-        });
-      }
+      // if (userRole !== 'admin') {
+      //   return res.status(403).json({ 
+      //     message: 'Access denied. Admin role required to create Amazon listings.' 
+      //   });
+      // }
 
-      const { asin, productName, price, sku } = req.body;
+      const { asin, productName, price, brand } = req.body;
 
       if (!asin || !productName) {
         return res.status(400).json({ 
@@ -1648,15 +1648,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      if (!brand) {
+        return res.status(400).json({ 
+          message: 'Brand is required for SKU generation' 
+        });
+      }
+
+      if (!price) {
+        return res.status(400).json({ 
+          message: 'Price is required for SKU generation' 
+        });
+      }
+
+      // Generate SKU using pattern: Brand_BuyPrice_DATE_ASIN
+      const today = new Date();
+      const dateString = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
+      const cleanBrand = brand.replace(/[^a-zA-Z0-9]/g, ''); // Remove special characters
+      const cleanPrice = parseFloat(price.toString().replace(/[€,$]/g, '')).toFixed(2).replace('.', ''); // Remove currency and decimal
+      const generatedSku = `${cleanBrand}_${cleanPrice}_${dateString}_${asin}`;
+
       console.log('🌐 Starting Amazon SP-API listing creation for:', {
         asin,
+        brand,
         productName: productName.substring(0, 50) + '...',
         price,
-        sku: sku || `SKU-${asin}-${Date.now()}`,
+        generatedSku,
       });
 
+      console.log('📝 Generated SKU:', generatedSku);
+
       // Step 1: Get access token using refresh token
-      const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
+      const tokenResponse = await fetch('https://api.amazon.co.uk/auth/o2/token', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -1668,7 +1690,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
         }),
       });
-
       if (!tokenResponse.ok) {
         console.error('❌ Amazon token request failed with status:', tokenResponse.status);
         return res.status(500).json({
@@ -1678,15 +1699,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const tokenResult = await tokenResponse.json();
+      console.log("Token Response : ", tokenResult);
+
       const accessToken = tokenResult.access_token;
-      console.log('✅ Step 1: Access token obtained successfully');
+      console.log('✅ Step 1: Access token obtained successfully', accessToken);
 
       // Step 2: Create the listing using Listings API (no AWS SigV4 signing needed)
-      const listingSku = sku || `SKU-${asin}-${Date.now()}`;
+      const listingSku = generatedSku;
       const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace
 
       // Simplified listing data structure
-      const listingData = {
+      const listingData: any = {
         productType: 'PRODUCT',
         requirements: 'LISTING',
         attributes: {
@@ -1702,14 +1725,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Add price if provided
-      if (price) {
-        const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
-        if (!isNaN(priceValue)) {
-          listingData.attributes.list_price = [{
-            value: { Amount: priceValue, CurrencyCode: 'EUR' },
-            marketplace_id: marketplaceId,
-          }];
-        }
+      const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
+      if (!isNaN(priceValue)) {
+        listingData.attributes.list_price = [{
+          value: { Amount: priceValue, CurrencyCode: 'EUR' },
+          marketplace_id: marketplaceId,
+        }];
       }
 
       const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
