@@ -1478,6 +1478,7 @@ export default function PurchasingInbox() {
                                       asin: item["ASIN"] || "",
                                       productName: item["Product Name"] || "",
                                       price: item["Sale Price"] || "",
+                                      buyPrice: item[]
                                       brand: item["Brand"] || "",
                                     });
                                   }}
