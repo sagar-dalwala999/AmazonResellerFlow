@@ -10,7 +10,8 @@ import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema, 
 import { googleSheetsService, parseMoneySmart, parsePercentMaybe, parseNumericValue, readSourcingSheet } from "./googleSheetsService";
 import { z } from "zod";
 
-// Amazon SP-API (using fetch-based implementation for European region)
+// Amazon SP-API SDK imports (for catalog items only)
+import { CatalogItemsApiClient } from '@scaleleap/selling-partner-api-sdk';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
@@ -1693,65 +1694,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let productType = 'LUGGAGE'; // Safe fallback product type
       let catalogFailed = false;
 
-      // Try Catalog Items API (if permissions allow) - using fetch for European region
+      // Try Catalog Items API using SDK (if permissions allow)
       try {
-        console.log('🔍 Trying Catalog Items API for ASIN:', asin);
+        console.log('🔍 Trying Catalog Items API SDK for ASIN:', asin);
         
-        // Get LWA access token first
-        const tokenResponse = await fetch('https://api.amazon.co.uk/auth/o2/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
-            client_id: process.env.AMAZON_SP_CLIENT_ID!,
-            client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
-          }),
+        // SDK configuration for European marketplace (LWA-only, no AWS credentials)
+        const sdkConfig = {
+          basePath: 'https://sellingpartnerapi-eu.amazon.com', // Explicit European base path
+          region: 'eu-west-1' as const,
+          credentials: {
+            accessKeyId: '', // Not used with LWA
+            secretAccessKey: '', // Not used with LWA
+            SELLING_PARTNER_APP_CLIENT_ID: process.env.AMAZON_SP_CLIENT_ID!,
+            SELLING_PARTNER_APP_CLIENT_SECRET: process.env.AMAZON_SP_CLIENT_SECRET!,
+          },
+          refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
+          options: {
+            auto_request_tokens: true,
+            auto_request_throttled: true,
+            use_sandbox: false,
+            endpoints_versions: {
+              'catalog': '2022-04-01'
+            }
+          }
+        };
+
+        // Initialize Catalog API client with SDK
+        const catalogClient = new CatalogItemsApiClient(sdkConfig);
+        
+        // Get catalog item information by ASIN using SDK
+        const catalogResponse = await catalogClient.getCatalogItem({
+          asin: asin,
+          marketplaceId: marketplaceId, // Use singular marketplaceId
+          includedData: ['productTypes', 'classifications']
         });
-        
-        if (tokenResponse.ok) {
-          const tokenResult = await tokenResponse.json();
-          const accessToken = tokenResult.access_token;
 
-          const catalogResponse = await fetch(
-            `https://sellingpartnerapi-eu.amazon.com/catalog/2022-04-01/items?MarketplaceId=${marketplaceId}&Query=${asin}&QueryType=ASIN`,
-            {
-              method: 'GET',
-              headers: {
-                'x-amz-access-token': accessToken,
-                'Accept': 'application/json',
-              },
-            }
-          );
-
-          if (catalogResponse.ok) {
-            const catalogData = await catalogResponse.json();
-            console.log('📦 Catalog API successful - extracting product type...');
-            
-            if (catalogData.Items && catalogData.Items.length > 0) {
-              const item = catalogData.Items[0];
-              let detectedType = null;
-              
-              if (item.ProductTypes && item.ProductTypes.length > 0) {
-                detectedType = item.ProductTypes[0];
-              } else if (item.ItemClassification && item.ItemClassification.ProductType) {
-                detectedType = item.ItemClassification.ProductType;
-              }
-              
-              if (detectedType) {
-                productType = detectedType;
-                console.log('✅ Catalog API: Detected product type:', productType);
-                catalogFailed = false;
-              }
-            }
-          } else if (catalogResponse.status === 403) {
-            console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
-            console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
-            catalogFailed = true;
+        // Extract data from AxiosResponse
+        const catalogData = catalogResponse.data;
+        if (catalogData?.asin === asin) {
+          console.log('📦 Catalog API SDK successful - extracting product type...');
+          
+          // Extract product type from SDK response
+          let detectedType = null;
+          
+          if (catalogData.productTypes && catalogData.productTypes.length > 0) {
+            detectedType = catalogData.productTypes[0];
+          } else if (catalogData.classifications?.item?.productType) {
+            detectedType = catalogData.classifications.item.productType;
+          }
+          
+          if (detectedType) {
+            productType = detectedType;
+            console.log('✅ Catalog API SDK: Detected product type:', productType);
+            catalogFailed = false;
           }
         }
       } catch (error: any) {
-        console.error('❌ Catalog API error:', error?.message || error);
+        console.error('❌ Catalog API SDK error:', error?.message || error);
+        if (error?.response?.status === 403) {
+          console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
+          console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
+        }
         catalogFailed = true;
       }
 
