@@ -1698,13 +1698,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         console.log('🔍 Trying Catalog Items API SDK for ASIN:', asin);
         
-        // SDK configuration for European marketplace (LWA-only, no AWS credentials)
+        // SDK configuration for European marketplace with AWS + LWA credentials
         const sdkConfig = {
           basePath: 'https://sellingpartnerapi-eu.amazon.com', // Explicit European base path
           region: 'eu-west-1' as const,
           credentials: {
-            accessKeyId: '', // Not used with LWA
-            secretAccessKey: '', // Not used with LWA
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID!, // AWS IAM user credentials
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!, // AWS IAM user credentials
             SELLING_PARTNER_APP_CLIENT_ID: process.env.AMAZON_SP_CLIENT_ID!,
             SELLING_PARTNER_APP_CLIENT_SECRET: process.env.AMAZON_SP_CLIENT_SECRET!,
           },
