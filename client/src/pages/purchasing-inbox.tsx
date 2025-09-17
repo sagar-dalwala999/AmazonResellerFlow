@@ -508,15 +508,21 @@ export default function PurchasingInbox() {
   const createShipment = useMutation({
     mutationFn: async ({
       asin,
+      brand,
+      buyPrice,
       productName,
       quantity,
     }: {
       asin: string;
+      brand: string;
+      buyPrice: string;
       productName: string;
       quantity: number;
     }) => {
       return apiRequest("/api/purchasing/create-shipment", "POST", {
         asin,
+        brand,
+        buyPrice,
         productName,
         quantity,
       });
@@ -1499,6 +1505,8 @@ export default function PurchasingInbox() {
                                     const purchasedAmount = purchasedAmounts[(item as any)._originalRowIndex] || 1;
                                     createShipment.mutate({
                                       asin: item["ASIN"] || "",
+                                      brand: item["Brand"] || "",
+                                      buyPrice: item["Cost Price"] || "",
                                       productName: item["Product Name"] || "",
                                       quantity: purchasedAmount,
                                     });

@@ -841,11 +841,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create shipment via PrepMyBusiness API (3-step process)
   app.post('/api/purchasing/create-shipment', isAuthenticated, async (req, res) => {
     try {
-      const { asin, productName, quantity } = req.body;
+      const { asin, brand, buyPrice, productName, quantity } = req.body;
       
-      if (!asin || !productName || !quantity) {
+      if (!asin || !brand || !buyPrice || !productName || !quantity) {
         return res.status(400).json({ 
-          message: 'ASIN, product name, and quantity are required' 
+          message: 'ASIN, brand, buy price, product name, and quantity are required' 
         });
       }
 
@@ -859,10 +859,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log('🚛 Starting PrepMyBusiness shipment creation for:', { asin, productName, quantity });
+      console.log('🚛 Starting PrepMyBusiness shipment creation for:', { asin, brand, buyPrice, productName, quantity });
 
       // STEP 1: Create inventory item
-      const merchantSku = `SKU-${asin}-${Date.now()}`;
+      const buyPriceNum = parseFloat(buyPrice) || 0;
+      const merchantSku = storage.generateSKU(brand, buyPriceNum, asin);
+      console.log('🏷️ Generated SKU:', merchantSku);
       
       const inventoryPayload = {
         merchant_sku: merchantSku,
