@@ -1,0 +1,724 @@
+<html lang="de" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Reselling Management - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    popover: {
+                        DEFAULT: "var(--popover)",
+                        foreground: "var(--popover-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    destructive: {
+                        DEFAULT: "var(--destructive)",
+                        foreground: "var(--destructive-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Inter", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <style>
+        :root {
+            --background: hsl(210 40% 98%);
+            --foreground: hsl(222 84% 4.9%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(222 84% 4.9%);
+            --popover: hsl(0 0% 100%);
+            --popover-foreground: hsl(222 84% 4.9%);
+            --primary: hsl(221 83% 53%);
+            --primary-foreground: hsl(210 40% 98%);
+            --secondary: hsl(210 40% 96%);
+            --secondary-foreground: hsl(222 47% 11%);
+            --muted: hsl(210 40% 96%);
+            --muted-foreground: hsl(215 16% 47%);
+            --accent: hsl(210 40% 96%);
+            --accent-foreground: hsl(222 47% 11%);
+            --destructive: hsl(0 84% 60%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(214 32% 91%);
+            --input: hsl(214 32% 91%);
+            --ring: hsl(221 83% 53%);
+            --radius: 0.5rem;
+        }
+
+        .dark {
+            --background: hsl(222 84% 4.9%);
+            --foreground: hsl(210 40% 98%);
+            --card: hsl(222 84% 4.9%);
+            --card-foreground: hsl(210 40% 98%);
+            --popover: hsl(222 84% 4.9%);
+            --popover-foreground: hsl(210 40% 98%);
+            --primary: hsl(217 91% 60%);
+            --primary-foreground: hsl(222 84% 4.9%);
+            --secondary: hsl(217 32% 17%);
+            --secondary-foreground: hsl(210 40% 98%);
+            --muted: hsl(217 32% 17%);
+            --muted-foreground: hsl(215 20% 65%);
+            --accent: hsl(217 32% 17%);
+            --accent-foreground: hsl(210 40% 98%);
+            --destructive: hsl(0 62% 30%);
+            --destructive-foreground: hsl(210 40% 98%);
+            --border: hsl(217 32% 17%);
+            --input: hsl(217 32% 17%);
+            --ring: hsl(224 71% 4%);
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary)) var(--progress, 0%), hsl(var(--muted)) var(--progress, 0%), hsl(var(--muted)) 100%);
+        }
+    </style>
+</head>
+<body class="h-full bg-background font-sans antialiased">
+    <!-- @COMPONENT: MainLayout -->
+    <div class="flex h-screen overflow-hidden">
+        <!-- @COMPONENT: Sidebar -->
+        <aside class="hidden lg:flex lg:flex-shrink-0">
+            <div class="flex flex-col w-64 bg-card border-r border-border">
+                <!-- Logo/Header -->
+                <div class="flex items-center justify-between h-16 px-6 border-b border-border">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
+                            <i class="fas fa-box text-primary-foreground text-sm"></i>
+                        </div>
+                        <span class="text-lg font-semibold text-foreground">ResellerPro</span>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex-1 px-4 py-6 space-y-2">
+                    <!-- @MAP: navigationItems.map(item => ( -->
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground" data-bind="item.isActive">
+                        <i class="fas fa-tachometer-alt mr-3"></i>
+                        Dashboard
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-plus-circle mr-3"></i>
+                        Deal Erfassung
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-check-circle mr-3"></i>
+                        Deal Bewertung
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-shopping-cart mr-3"></i>
+                        Einkaufsplanung
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-barcode mr-3"></i>
+                        SKU Management
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-warehouse mr-3"></i>
+                        Lager & Bestand
+                    </a>
+                    <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                        <i class="fas fa-chart-line mr-3"></i>
+                        Profit & Cashflow
+                    </a>
+                    <!-- @END_MAP )) -->
+
+                    <div class="pt-6 mt-6 border-t border-border">
+                        <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                            <i class="fas fa-users mr-3"></i>
+                            VA Management
+                        </a>
+                        <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground rounded-md hover:bg-accent hover:text-accent-foreground">
+                            <i class="fas fa-cog mr-3"></i>
+                            Einstellungen
+                        </a>
+                    </div>
+                </nav>
+
+                <!-- User Profile -->
+                <div class="px-4 py-4 border-t border-border">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                            <span class="text-xs font-medium text-primary-foreground" data-bind="user.initials">JD</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-foreground truncate" data-bind="user.name">John Doe</p>
+                            <p class="text-xs text-muted-foreground truncate" data-bind="user.role">Admin</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        <!-- @END_COMPONENT: Sidebar -->
+
+        <!-- @COMPONENT: MainContent -->
+        <div class="flex flex-col flex-1 overflow-hidden">
+            <!-- Header -->
+            <header class="bg-card border-b border-border">
+                <div class="flex items-center justify-between h-16 px-6">
+                    <div class="flex items-center space-x-4">
+                        <button class="lg:hidden p-2 rounded-md text-muted-foreground hover:bg-accent">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h1 class="text-xl font-semibold text-foreground">Dashboard</h1>
+                    </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <!-- Google Sheets Sync Status -->
+                        <div class="flex items-center space-x-2 px-3 py-1 bg-green-50 border border-green-200 rounded-md">
+                            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs font-medium text-green-700">Google Sheets Sync aktiv</span>
+                        </div>
+                        
+                        <button class="p-2 text-muted-foreground hover:bg-accent rounded-md">
+                            <i class="fas fa-bell"></i>
+                        </button>
+                        <button class="p-2 text-muted-foreground hover:bg-accent rounded-md">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="flex-1 overflow-auto bg-background">
+                <div class="p-6 space-y-6">
+                    <!-- KPI Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- @MAP: kpiCards.map(card => ( -->
+                        <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-muted-foreground">Aktive Deals</p>
+                                    <p class="text-2xl font-bold text-foreground" data-bind="kpi.activeDeals">247</p>
+                                </div>
+                                <div class="p-3 bg-blue-50 rounded-lg">
+                                    <i class="fas fa-handshake text-blue-600"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-center">
+                                <span class="text-sm text-green-600 font-medium">+12%</span>
+                                <span class="text-sm text-muted-foreground ml-2">vs. letzter Monat</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-muted-foreground">Winner Produkte</p>
+                                    <p class="text-2xl font-bold text-foreground" data-bind="kpi.winnerProducts">89</p>
+                                </div>
+                                <div class="p-3 bg-green-50 rounded-lg">
+                                    <i class="fas fa-trophy text-green-600"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-center">
+                                <span class="text-sm text-green-600 font-medium">+8%</span>
+                                <span class="text-sm text-muted-foreground ml-2">Erfolgsrate</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-muted-foreground">Monatlicher Profit</p>
+                                    <p class="text-2xl font-bold text-foreground" data-bind="kpi.monthlyProfit">€45.230</p>
+                                </div>
+                                <div class="p-3 bg-emerald-50 rounded-lg">
+                                    <i class="fas fa-euro-sign text-emerald-600"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-center">
+                                <span class="text-sm text-green-600 font-medium">+23%</span>
+                                <span class="text-sm text-muted-foreground ml-2">vs. letzter Monat</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-muted-foreground">Verfügbares Budget</p>
+                                    <p class="text-2xl font-bold text-foreground" data-bind="kpi.availableBudget">€156.750</p>
+                                </div>
+                                <div class="p-3 bg-purple-50 rounded-lg">
+                                    <i class="fas fa-wallet text-purple-600"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex items-center">
+                                <span class="text-sm text-orange-600 font-medium">82%</span>
+                                <span class="text-sm text-muted-foreground ml-2">des Gesamtbudgets</span>
+                            </div>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+
+                    <!-- Quick Actions & Recent Activity -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Quick Actions -->
+                        <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <h3 class="text-lg font-semibold text-foreground mb-4">Schnellzugriff</h3>
+                            <div class="space-y-3">
+                                <button class="w-full flex items-center justify-between p-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md transition-colors" data-event="click:openDealForm">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-plus mr-3"></i>
+                                        Neuen Deal erfassen
+                                    </span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                                <button class="w-full flex items-center justify-between p-3 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md transition-colors">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-sync mr-3"></i>
+                                        Google Sheets Import
+                                    </span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                                <button class="w-full flex items-center justify-between p-3 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md transition-colors">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-download mr-3"></i>
+                                        Export für Amazon
+                                    </span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="lg:col-span-2 bg-card p-6 rounded-lg border border-border shadow-sm">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-foreground">Letzte Aktivitäten</h3>
+                                <button class="text-sm text-primary hover:text-primary/80">Alle anzeigen</button>
+                            </div>
+                            <div class="space-y-4">
+                                <!-- @MAP: recentActivities.map(activity => ( -->
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-check text-green-600 text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm text-foreground">
+                                            <span class="font-medium" data-bind="activity.user">VA Maria</span>
+                                            hat Deal <span class="font-medium" data-bind="activity.product">"Apple iPhone 15"</span> eingereicht
+                                        </p>
+                                        <p class="text-xs text-muted-foreground mt-1" data-bind="activity.timestamp">vor 2 Minuten</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-star text-blue-600 text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm text-foreground">
+                                            Deal <span class="font-medium" data-bind="activity.product">"Samsung Galaxy Watch"</span> 
+                                            wurde als Winner freigegeben
+                                        </p>
+                                        <p class="text-xs text-muted-foreground mt-1" data-bind="activity.timestamp">vor 15 Minuten</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-shopping-cart text-purple-600 text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm text-foreground">
+                                            Einkaufsauftrag für <span class="font-medium" data-bind="activity.quantity">500 Stück</span> 
+                                            "Nike Air Max" erstellt
+                                        </p>
+                                        <p class="text-xs text-muted-foreground mt-1" data-bind="activity.timestamp">vor 1 Stunde</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0 w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-barcode text-orange-600 text-xs"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm text-foreground">
+                                            SKU <span class="font-medium" data-bind="activity.sku">AMZ-123456</span> 
+                                            wurde generiert und an Amazon übertragen
+                                        </p>
+                                        <p class="text-xs text-muted-foreground mt-1" data-bind="activity.timestamp">vor 2 Stunden</p>
+                                    </div>
+                                </div>
+                                <!-- @END_MAP )) -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Overview -->
+                    <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-semibold text-foreground">Deal Pipeline</h3>
+                            <div class="flex items-center space-x-2">
+                                <button class="px-3 py-1 text-xs font-medium text-primary border border-primary rounded hover:bg-primary hover:text-primary-foreground transition-colors">
+                                    Filter
+                                </button>
+                                <button class="px-3 py-1 text-xs font-medium text-muted-foreground border border-border rounded hover:bg-accent transition-colors">
+                                    Export
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Pipeline Stages -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div class="text-center">
+                                <div class="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-2">
+                                    <i class="fas fa-inbox text-blue-600"></i>
+                                </div>
+                                <h4 class="text-sm font-medium text-foreground">Eingereicht</h4>
+                                <p class="text-xl font-bold text-foreground" data-bind="pipeline.submitted">156</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg mx-auto mb-2">
+                                    <i class="fas fa-clock text-yellow-600"></i>
+                                </div>
+                                <h4 class="text-sm font-medium text-foreground">In Bewertung</h4>
+                                <p class="text-xl font-bold text-foreground" data-bind="pipeline.reviewing">43</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-2">
+                                    <i class="fas fa-trophy text-green-600"></i>
+                                </div>
+                                <h4 class="text-sm font-medium text-foreground">Winner</h4>
+                                <p class="text-xl font-bold text-foreground" data-bind="pipeline.winners">89</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-2">
+                                    <i class="fas fa-rocket text-purple-600"></i>
+                                </div>
+                                <h4 class="text-sm font-medium text-foreground">Live</h4>
+                                <p class="text-xl font-bold text-foreground" data-bind="pipeline.live">67</p>
+                            </div>
+                        </div>
+
+                        <!-- Recent Deals Table -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-border">
+                                        <th class="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Produkt</th>
+                                        <th class="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">VA</th>
+                                        <th class="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                                        <th class="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Profit %</th>
+                                        <th class="text-left py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Eingereicht</th>
+                                        <th class="text-right py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <!-- @MAP: recentDeals.map(deal => ( -->
+                                    <tr class="hover:bg-muted/50">
+                                        <td class="py-4 px-4">
+                                            <div class="flex items-center">
+                                                <!-- Product image placeholder -->
+                                                <div class="w-10 h-10 bg-muted rounded-lg mr-3 flex items-center justify-center">
+                                                    <i class="fas fa-image text-muted-foreground text-xs"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-foreground" data-bind="deal.productName">Apple iPhone 15 Pro</p>
+                                                    <p class="text-xs text-muted-foreground" data-bind="deal.asin">ASIN: B0C7Q8W9XY</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-foreground" data-bind="deal.va">Maria Schmidt</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full" data-bind="deal.status">
+                                                In Bewertung
+                                            </span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm font-medium text-green-600" data-bind="deal.profitMargin">28%</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-muted-foreground" data-bind="deal.submittedAt">12.01.2025</span>
+                                        </td>
+                                        <td class="py-4 px-4 text-right">
+                                            <button class="text-primary hover:text-primary/80 text-sm font-medium">
+                                                Details
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    <tr class="hover:bg-muted/50">
+                                        <td class="py-4 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-10 h-10 bg-muted rounded-lg mr-3 flex items-center justify-center">
+                                                    <i class="fas fa-image text-muted-foreground text-xs"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-foreground" data-bind="deal.productName">Samsung Galaxy Watch 6</p>
+                                                    <p class="text-xs text-muted-foreground" data-bind="deal.asin">ASIN: B0B8W7Q3RS</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-foreground" data-bind="deal.va">Alex Johnson</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full" data-bind="deal.status">
+                                                Winner
+                                            </span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm font-medium text-green-600" data-bind="deal.profitMargin">35%</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-muted-foreground" data-bind="deal.submittedAt">11.01.2025</span>
+                                        </td>
+                                        <td class="py-4 px-4 text-right">
+                                            <button class="text-primary hover:text-primary/80 text-sm font-medium">
+                                                Details
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    <tr class="hover:bg-muted/50">
+                                        <td class="py-4 px-4">
+                                            <div class="flex items-center">
+                                                <div class="w-10 h-10 bg-muted rounded-lg mr-3 flex items-center justify-center">
+                                                    <i class="fas fa-image text-muted-foreground text-xs"></i>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-medium text-foreground" data-bind="deal.productName">Nike Air Max 90</p>
+                                                    <p class="text-xs text-muted-foreground" data-bind="deal.asin">ASIN: B0A3K9L2MN</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-foreground" data-bind="deal.va">Lisa Weber</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full" data-bind="deal.status">
+                                                Live
+                                            </span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm font-medium text-green-600" data-bind="deal.profitMargin">42%</span>
+                                        </td>
+                                        <td class="py-4 px-4">
+                                            <span class="text-sm text-muted-foreground" data-bind="deal.submittedAt">10.01.2025</span>
+                                        </td>
+                                        <td class="py-4 px-4 text-right">
+                                            <button class="text-primary hover:text-primary/80 text-sm font-medium">
+                                                Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <!-- @END_MAP )) -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- API Integration Status -->
+                    <div class="bg-card p-6 rounded-lg border border-border shadow-sm">
+                        <h3 class="text-lg font-semibold text-foreground mb-4">API Integrationen</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i class="fab fa-amazon text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-green-900">Amazon MWS</p>
+                                        <p class="text-xs text-green-700">Letzte Sync: vor 5 Min</p>
+                                    </div>
+                                </div>
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-box text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-blue-900">PrepMyBusiness</p>
+                                        <p class="text-xs text-blue-700">Letzte Sync: vor 12 Min</p>
+                                    </div>
+                                </div>
+                                <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <i class="fab fa-google text-gray-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Google Sheets</p>
+                                        <p class="text-xs text-gray-700">Live Sync aktiv</p>
+                                    </div>
+                                </div>
+                                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+        <!-- @END_COMPONENT: MainContent -->
+    </div>
+    <!-- @END_COMPONENT: MainLayout -->
+
+    <!-- @COMPONENT: DealSubmissionModal -->
+    <!-- Hidden by default, shown when "Neuen Deal erfassen" is clicked -->
+    <div id="dealModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden" data-mock="true">
+        <div class="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between p-6 border-b border-border">
+                <h2 class="text-xl font-semibold text-foreground">Neuen Deal erfassen</h2>
+                <button class="text-muted-foreground hover:text-foreground" onclick="document.getElementById('dealModal').classList.add('hidden')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form class="p-6 space-y-6" data-implementation="Handle form submission with validation">
+                <!-- @STATE: formData:object = {} -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2">Produktname</label>
+                        <input type="text" placeholder="z.B. Apple iPhone 15 Pro" class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.productName">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2">ASIN</label>
+                        <input type="text" placeholder="B0XXXXXXXXX" class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.asin">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2">Einkaufspreis (€)</label>
+                        <input type="number" step="0.01" placeholder="0.00" class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.buyPrice">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2">Verkaufspreis (€)</label>
+                        <input type="number" step="0.01" placeholder="0.00" class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.sellPrice">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-foreground mb-2">Profit Margin (%)</label>
+                        <input type="number" step="0.1" placeholder="0.0" class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.profitMargin" readonly>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-foreground mb-2">Kategorie</label>
+                    <select class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.category">
+                        <option value="">Kategorie wählen...</option>
+                        <option value="electronics">Elektronik</option>
+                        <option value="clothing">Bekleidung</option>
+                        <option value="home">Haus & Garten</option>
+                        <option value="sports">Sport & Freizeit</option>
+                        <option value="beauty">Beauty & Gesundheit</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-foreground mb-2">Notizen</label>
+                    <textarea rows="3" placeholder="Zusätzliche Informationen zum Deal..." class="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" data-bind="formData.notes"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end space-x-4 pt-4 border-t border-border">
+                    <button type="button" class="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground" onclick="document.getElementById('dealModal').classList.add('hidden')">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors" data-event="click:submitDeal">
+                        Deal einreichen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: DealSubmissionModal -->
+
+    <script>
+        // TODO: Implement business logic, API calls, and state management
+        (function() {
+            // Modal functionality
+            const openDealFormBtn = document.querySelector('[data-event="click:openDealForm"]');
+            const dealModal = document.getElementById('dealModal');
+            
+            if (openDealFormBtn && dealModal) {
+                openDealFormBtn.addEventListener('click', function() {
+                    dealModal.classList.remove('hidden');
+                });
+            }
+
+            // Profit calculation
+            const buyPriceInput = document.querySelector('[data-bind="formData.buyPrice"]');
+            const sellPriceInput = document.querySelector('[data-bind="formData.sellPrice"]');
+            const profitMarginInput = document.querySelector('[data-bind="formData.profitMargin"]');
+
+            function calculateProfitMargin() {
+                const buyPrice = parseFloat(buyPriceInput.value) || 0;
+                const sellPrice = parseFloat(sellPriceInput.value) || 0;
+                
+                if (buyPrice > 0 && sellPrice > 0) {
+                    const profit = sellPrice - buyPrice;
+                    const margin = (profit / sellPrice) * 100;
+                    profitMarginInput.value = margin.toFixed(1);
+                } else {
+                    profitMarginInput.value = '';
+                }
+            }
+
+            if (buyPriceInput && sellPriceInput) {
+                buyPriceInput.addEventListener('input', calculateProfitMargin);
+                sellPriceInput.addEventListener('input', calculateProfitMargin);
+            }
+
+            // Form submission
+            const dealForm = document.querySelector('form[data-implementation*="Handle form submission"]');
+            if (dealForm) {
+                dealForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    // TODO: Validate form data and submit to backend
+                    alert('Deal wurde erfolgreich eingereicht! (Mock Implementation)');
+                    dealModal.classList.add('hidden');
+                });
+            }
+
+            // Mock real-time updates
+            setInterval(function() {
+                // TODO: Implement real-time data updates from backend
+                console.log('Checking for real-time updates...');
+            }, 30000);
+        })();
+    </script>
+</body>
+</html>

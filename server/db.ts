@@ -3,7 +3,12 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 neonConfig.webSocketConstructor = ws;
+
+console.log("🔧 Setting up database", process.env.DATABASE_URL);
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
