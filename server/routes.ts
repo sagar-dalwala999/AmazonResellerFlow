@@ -6,12 +6,23 @@ import path from "path";
 import aws4 from "aws4";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertSourcingSchema, insertPurchasingPlanSchema, insertListingSchema, insertSourcingFileSchema } from "@shared/schema";
-import { googleSheetsService, parseMoneySmart, parsePercentMaybe, parseNumericValue, readSourcingSheet } from "./googleSheetsService";
+import {
+  insertSourcingSchema,
+  insertPurchasingPlanSchema,
+  insertListingSchema,
+  insertSourcingFileSchema,
+} from "@shared/schema";
+import {
+  googleSheetsService,
+  parseMoneySmart,
+  parsePercentMaybe,
+  parseNumericValue,
+  readSourcingSheet,
+} from "./googleSheetsService";
 import { z } from "zod";
 
 // Amazon SP-API SDK imports (for catalog items only)
-import { CatalogItemsApiClient } from '@scaleleap/selling-partner-api-sdk';
+import { CatalogItemsApiClient } from "@scaleleap/selling-partner-api-sdk";
 import { buildLuggagePayload } from "./utils/productSchemas/Luggage";
 import { buildHomePayload } from "./utils/productSchemas/Home";
 
@@ -19,17 +30,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
   const uploadStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-      const uploadDir = 'uploads/sourcing';
+      const uploadDir = "uploads/sourcing";
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
       }
       cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
       const extension = path.extname(file.originalname);
-      cb(null, file.fieldname + '-' + uniqueSuffix + extension);
-    }
+      cb(null, file.fieldname + "-" + uniqueSuffix + extension);
+    },
   });
 
   const upload = multer({
@@ -39,21 +50,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
     fileFilter: (req, file, cb) => {
       const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
-      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const extname = allowedTypes.test(
+        path.extname(file.originalname).toLowerCase()
+      );
       const mimetype = allowedTypes.test(file.mimetype);
       if (mimetype && extname) {
         return cb(null, true);
       } else {
-        cb(new Error('Invalid file type'));
+        cb(new Error("Invalid file type"));
       }
-    }
+    },
   });
 
   // Auth middleware
   await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUserStats(userId);
@@ -65,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sourcing routes (Google Sheets Integration)
-  app.post('/api/sourcing', isAuthenticated, async (req: any, res) => {
+  app.post("/api/sourcing", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const sourcingData = insertSourcingSchema.parse(req.body);
@@ -88,8 +101,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await storage.logActivity({
         userId,
-        action: 'sourcing_submitted',
-        entityType: 'sourcing',
+        action: "sourcing_submitted",
+        entityType: "sourcing",
         entityId: sourcing.id,
         description: `Sourcing für "${sourcingData.productName}" eingereicht`,
       });
@@ -101,18 +114,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/sourcing', isAuthenticated, async (req: any, res) => {
+  app.get("/api/sourcing", isAuthenticated, async (req: any, res) => {
     try {
       const { status, limit } = req.query;
       const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
+      const userRole = req.user.claims.role || "va";
 
       const options: any = {};
       if (status) options.status = status;
       if (limit) options.limit = parseInt(limit);
-      
+
       // VAs can only see their own sourcing
-      if (userRole === 'va') {
+      if (userRole === "va") {
         options.submittedBy = userId;
       }
 
@@ -124,55 +137,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/sourcing/:id/status', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      
-      // Only admins can update sourcing status
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
+  app.patch(
+    "/api/sourcing/:id/status",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const userRole = req.user.claims.role || "va";
+
+        // Only admins can update sourcing status
+        if (userRole !== "admin") {
+          return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        const { status, reviewNotes } = req.body;
+        const sourcingId = req.params.id;
+
+        await storage.updateSourcingStatus(
+          sourcingId,
+          status,
+          userId,
+          reviewNotes
+        );
+
+        // Log activity
+        await storage.logActivity({
+          userId,
+          action: "sourcing_status_updated",
+          entityType: "sourcing",
+          entityId: sourcingId,
+          description: `Sourcing Status zu "${status}" geändert`,
+        });
+
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error updating sourcing status:", error);
+        res.status(500).json({ message: "Failed to update sourcing status" });
       }
-
-      const { status, reviewNotes } = req.body;
-      const sourcingId = req.params.id;
-
-      await storage.updateSourcingStatus(sourcingId, status, userId, reviewNotes);
-
-      // Log activity
-      await storage.logActivity({
-        userId,
-        action: 'sourcing_status_updated',
-        entityType: 'sourcing',
-        entityId: sourcingId,
-        description: `Sourcing Status zu "${status}" geändert`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error updating sourcing status:", error);
-      res.status(500).json({ message: "Failed to update sourcing status" });
     }
-  });
+  );
 
   // Purchasing routes
-  app.post('/api/purchasing', isAuthenticated, async (req: any, res) => {
+  app.post("/api/purchasing", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      
+      const userRole = req.user.claims.role || "va";
+
       // Only admins can create purchasing plans
-      if (userRole !== 'admin') {
+      if (userRole !== "admin") {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
       const planData = insertPurchasingPlanSchema.parse(req.body);
-      
+
       // Calculate expected revenue and profit
       const quantity = planData.plannedQuantity;
       const costPerUnit = Number(planData.costPerUnit);
       const plannedBudget = Number(planData.plannedBudget);
-      
+
       // Get sourcing item to calculate sale price
       const sourcingItem = await storage.getSourcingItem(planData.sourcingId);
       if (!sourcingItem) {
@@ -182,9 +204,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const salePrice = Number(sourcingItem.salePrice);
       const expectedRevenue = quantity * salePrice;
       const expectedProfit = expectedRevenue - plannedBudget;
-      
+
       // Check margin warning (if profit margin < 15%)
-      const marginWarning = (expectedProfit / expectedRevenue) < 0.15;
+      const marginWarning = expectedProfit / expectedRevenue < 0.15;
 
       const plan = await storage.createPurchasingPlan({
         ...planData,
@@ -196,8 +218,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await storage.logActivity({
         userId,
-        action: 'purchasing_plan_created',
-        entityType: 'purchasing',
+        action: "purchasing_plan_created",
+        entityType: "purchasing",
         entityId: plan.id,
         description: `Einkaufsplan für ${quantity} Einheiten erstellt`,
       });
@@ -209,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/purchasing', isAuthenticated, async (req: any, res) => {
+  app.get("/api/purchasing", isAuthenticated, async (req: any, res) => {
     try {
       const { status, limit } = req.query;
       const options: any = {};
@@ -224,12 +246,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/purchasing/:id', isAuthenticated, async (req: any, res) => {
+  app.patch("/api/purchasing/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      
-      if (userRole !== 'admin') {
+      const userRole = req.user.claims.role || "va";
+
+      if (userRole !== "admin") {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
@@ -240,8 +262,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.logActivity({
         userId,
-        action: 'purchasing_plan_updated',
-        entityType: 'purchasing',
+        action: "purchasing_plan_updated",
+        entityType: "purchasing",
         entityId: planId,
         description: `Einkaufsplan aktualisiert`,
       });
@@ -254,18 +276,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Listing routes (SKU Management)
-  app.post('/api/listings', isAuthenticated, async (req: any, res) => {
+  app.post("/api/listings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      
+      const userRole = req.user.claims.role || "va";
+
       // Only admins can create listings
-      if (userRole !== 'admin') {
+      if (userRole !== "admin") {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
       const { sourcingId, purchasingId } = req.body;
-      
+
       // Get sourcing item for SKU generation
       const sourcingItem = await storage.getSourcingItem(sourcingId);
       if (!sourcingItem) {
@@ -274,19 +296,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate SKU
       const skuCode = storage.generateSKU(
-        sourcingItem.brand || 'UNKNOWN',
+        sourcingItem.brand || "UNKNOWN",
         Number(sourcingItem.costPrice),
         sourcingItem.asin
       );
 
       const date = new Date();
-      const generatedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
+      const generatedDate = date
+        .toISOString()
+        .slice(2, 10)
+        .replace(/-/g, "")
+        .slice(0, 6);
 
       const listing = await storage.createListing({
         sourcingId,
         purchasingId,
         skuCode,
-        brand: sourcingItem.brand || 'UNKNOWN',
+        brand: sourcingItem.brand || "UNKNOWN",
         buyPrice: sourcingItem.costPrice,
         asin: sourcingItem.asin,
         generatedDate,
@@ -295,8 +321,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await storage.logActivity({
         userId,
-        action: 'listing_created',
-        entityType: 'listing',
+        action: "listing_created",
+        entityType: "listing",
         entityId: listing.id,
         description: `Listing ${skuCode} erstellt`,
       });
@@ -308,7 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/listings', isAuthenticated, async (req: any, res) => {
+  app.get("/api/listings", isAuthenticated, async (req: any, res) => {
     try {
       const { status, limit } = req.query;
       const options: any = {};
@@ -323,37 +349,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/listings/:id/sync', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const userRole = req.user.claims.role || 'va';
-      
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
+  app.patch(
+    "/api/listings/:id/sync",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub;
+        const userRole = req.user.claims.role || "va";
+
+        if (userRole !== "admin") {
+          return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        const listingId = req.params.id;
+        const { amazonStatus, prepMyBusinessStatus } = req.body;
+
+        await storage.updateListingStatus(
+          listingId,
+          amazonStatus,
+          prepMyBusinessStatus
+        );
+
+        await storage.logActivity({
+          userId,
+          action: "listing_sync_updated",
+          entityType: "listing",
+          entityId: listingId,
+          description: `Listing Sync-Status aktualisiert`,
+        });
+
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error updating listing sync status:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to update listing sync status" });
       }
-
-      const listingId = req.params.id;
-      const { amazonStatus, prepMyBusinessStatus } = req.body;
-
-      await storage.updateListingStatus(listingId, amazonStatus, prepMyBusinessStatus);
-
-      await storage.logActivity({
-        userId,
-        action: 'listing_sync_updated',
-        entityType: 'listing',
-        entityId: listingId,
-        description: `Listing Sync-Status aktualisiert`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error updating listing sync status:", error);
-      res.status(500).json({ message: "Failed to update listing sync status" });
     }
-  });
+  );
 
   // Dashboard routes
-  app.get('/api/dashboard/kpis', isAuthenticated, async (req, res) => {
+  app.get("/api/dashboard/kpis", isAuthenticated, async (req, res) => {
     try {
       const kpis = await storage.getKpiData();
       res.json(kpis);
@@ -363,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/dashboard/pipeline', isAuthenticated, async (req, res) => {
+  app.get("/api/dashboard/pipeline", isAuthenticated, async (req, res) => {
     try {
       const pipeline = await storage.getSourcingStats();
       res.json(pipeline);
@@ -373,10 +409,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/activities', isAuthenticated, async (req, res) => {
+  app.get("/api/activities", isAuthenticated, async (req, res) => {
     try {
       const { limit } = req.query;
-      const activities = await storage.getRecentActivities(limit ? parseInt(limit as string) : 20);
+      const activities = await storage.getRecentActivities(
+        limit ? parseInt(limit as string) : 20
+      );
       res.json(activities);
     } catch (error) {
       console.error("Error fetching activities:", error);
@@ -385,69 +423,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // VA Performance routes
-  app.get('/api/va/performance/:userId', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.params.userId;
-      const userRole = req.user.claims.role || 'va';
-      const currentUserId = req.user.claims.sub;
-      
-      // VAs can only see their own performance, admins can see any
-      if (userRole === 'va' && userId !== currentUserId) {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
+  app.get(
+    "/api/va/performance/:userId",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.params.userId;
+        const userRole = req.user.claims.role || "va";
+        const currentUserId = req.user.claims.sub;
 
-      const { weeks } = req.query;
-      const performance = await storage.getVAPerformance(userId, weeks ? parseInt(weeks as string) : 4);
-      res.json(performance);
-    } catch (error) {
-      console.error("Error fetching VA performance:", error);
-      res.status(500).json({ message: "Failed to fetch VA performance" });
+        // VAs can only see their own performance, admins can see any
+        if (userRole === "va" && userId !== currentUserId) {
+          return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        const { weeks } = req.query;
+        const performance = await storage.getVAPerformance(
+          userId,
+          weeks ? parseInt(weeks as string) : 4
+        );
+        res.json(performance);
+      } catch (error) {
+        console.error("Error fetching VA performance:", error);
+        res.status(500).json({ message: "Failed to fetch VA performance" });
+      }
     }
-  });
+  );
 
   // Mock API integration endpoints
-  app.post('/api/integrations/amazon/sync', isAuthenticated, async (req: any, res) => {
-    try {
-      const userRole = req.user.claims.role || 'va';
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
+  app.post(
+    "/api/integrations/amazon/sync",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userRole = req.user.claims.role || "va";
+        if (userRole !== "admin") {
+          return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        // Mock Amazon SP-API sync
+        setTimeout(() => {
+          res.json({
+            success: true,
+            message: "Amazon SP-API sync completed",
+            syncedListings: Math.floor(Math.random() * 50) + 10,
+          });
+        }, 2000);
+      } catch (error) {
+        res.status(500).json({ message: "Amazon sync failed" });
       }
-
-      // Mock Amazon SP-API sync
-      setTimeout(() => {
-        res.json({ 
-          success: true, 
-          message: "Amazon SP-API sync completed",
-          syncedListings: Math.floor(Math.random() * 50) + 10
-        });
-      }, 2000);
-    } catch (error) {
-      res.status(500).json({ message: "Amazon sync failed" });
     }
-  });
+  );
 
-  app.post('/api/integrations/prepmybusiness/sync', isAuthenticated, async (req: any, res) => {
-    try {
-      const userRole = req.user.claims.role || 'va';
-      if (userRole !== 'admin') {
-        return res.status(403).json({ message: "Unauthorized" });
+  app.post(
+    "/api/integrations/prepmybusiness/sync",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userRole = req.user.claims.role || "va";
+        if (userRole !== "admin") {
+          return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        // Mock PrepMyBusiness API sync
+        setTimeout(() => {
+          res.json({
+            success: true,
+            message: "PrepMyBusiness sync completed",
+            syncedJobs: Math.floor(Math.random() * 20) + 5,
+          });
+        }, 1500);
+      } catch (error) {
+        res.status(500).json({ message: "PrepMyBusiness sync failed" });
       }
-
-      // Mock PrepMyBusiness API sync
-      setTimeout(() => {
-        res.json({ 
-          success: true, 
-          message: "PrepMyBusiness sync completed",
-          syncedJobs: Math.floor(Math.random() * 20) + 5
-        });
-      }, 1500);
-    } catch (error) {
-      res.status(500).json({ message: "PrepMyBusiness sync failed" });
     }
-  });
+  );
 
   // Google Sheets connection test endpoint
-  app.get('/api/integrations/google-sheets/test', async (req, res) => {
+  app.get("/api/integrations/google-sheets/test", async (req, res) => {
     const spreadsheetId = "1S06m7tQuejVvVpStS-gNKZMzrvdEsRCPuipxv1vEiTM";
     try {
       console.log("🔍 Starting Google Sheets connection test...");
@@ -455,13 +508,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasSpreadsheetId: true,
         hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
         hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-        spreadsheetId: spreadsheetId
+        spreadsheetId: spreadsheetId,
       });
-      
+
       const result = await googleSheetsService.testConnection();
-      
+
       console.log("📊 Test result:", JSON.stringify(result, null, 2));
-      
+
       if (result.success) {
         res.json({
           ...result,
@@ -471,9 +524,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               hasSpreadsheetId: true,
               hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-              spreadsheetId: spreadsheetId
-            }
-          }
+              spreadsheetId: spreadsheetId,
+            },
+          },
         });
       } else {
         res.status(400).json({
@@ -484,1491 +537,2272 @@ export async function registerRoutes(app: Express): Promise<Server> {
               hasSpreadsheetId: true,
               hasGoogleCredentials: !!process.env.GOOGLE_CREDENTIALS,
               hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-              spreadsheetId: spreadsheetId
-            }
-          }
+              spreadsheetId: spreadsheetId,
+            },
+          },
         });
       }
-
     } catch (error) {
       console.error("❌ Google Sheets test error:", {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
         name: error instanceof Error ? error.name : undefined,
         code: (error as any)?.code,
         library: (error as any)?.library,
-        reason: (error as any)?.reason
+        reason: (error as any)?.reason,
       });
-      
+
       res.status(500).json({
         success: false,
-        error: `Verbindungstest fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        error: `Verbindungstest fehlgeschlagen: ${
+          error instanceof Error ? error.message : "Unbekannter Fehler"
+        }`,
         debugInfo: {
           timestamp: new Date().toISOString(),
           errorDetails: {
-            message: error instanceof Error ? error.message : 'Unknown error',
+            message: error instanceof Error ? error.message : "Unknown error",
             name: error instanceof Error ? error.name : undefined,
             code: (error as any)?.code,
             library: (error as any)?.library,
-            reason: (error as any)?.reason
+            reason: (error as any)?.reason,
           },
           environment: {
             hasSpreadsheetId: true,
             hasServiceAccount: !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
-            spreadsheetId: spreadsheetId
-          }
-        }
+            spreadsheetId: spreadsheetId,
+          },
+        },
       });
     }
   });
 
   // New endpoint to fetch sourcing data directly from Google Sheets
-  app.get('/api/sourcing/sheets', isAuthenticated, async (req, res) => {
+  app.get("/api/sourcing/sheets", isAuthenticated, async (req, res) => {
     try {
       console.log("🔍 Fetching sourcing data directly from Google Sheets...");
       const { headers, items } = await readSourcingSheet();
-      
-      console.log(`📊 Found ${items.length} rows with headers: ${headers.join(', ')}`);
-      
+
+      console.log(
+        `📊 Found ${items.length} rows with headers: ${headers.join(", ")}`
+      );
+
       // Get archived items from database to filter them out
       const archivedItems = await storage.getSourcingItems(true); // showArchived = true
-      const archivedAsins = new Set(archivedItems.map(item => item.asin));
-      
+      const archivedAsins = new Set(archivedItems.map((item) => item.asin));
+
       // Filter out archived items based on ASIN
       const filteredItems = items.filter((item: any) => {
-        const asin = item['ASIN']?.trim();
+        const asin = item["ASIN"]?.trim();
         return !archivedAsins.has(asin);
       });
-      
-      console.log(`🔍 Filtered out ${items.length - filteredItems.length} archived items (${archivedAsins.size} total archived)`);
-      
+
+      console.log(
+        `🔍 Filtered out ${
+          items.length - filteredItems.length
+        } archived items (${archivedAsins.size} total archived)`
+      );
+
       res.json({
         success: true,
         headers,
         items: filteredItems,
         totalRows: filteredItems.length,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       });
-      
     } catch (error) {
       console.error("❌ Error fetching from Google Sheets:", error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
         headers: [],
-        items: []
+        items: [],
       });
     }
   });
 
   // Sourcing Items database operations
-  app.post('/api/sourcing/items/save', isAuthenticated, async (req, res) => {
+  app.post("/api/sourcing/items/save", isAuthenticated, async (req, res) => {
     try {
       const items = req.body;
       await storage.upsertSourcingItems(items);
-      res.json({ success: true, message: 'Items saved successfully' });
+      res.json({ success: true, message: "Items saved successfully" });
     } catch (error) {
-      console.error('Error saving sourcing items:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to save items',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      console.error("Error saving sourcing items:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to save items",
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });
 
-  app.get('/api/sourcing/items', isAuthenticated, async (req, res) => {
+  app.get("/api/sourcing/items", isAuthenticated, async (req, res) => {
     try {
-      const showArchived = req.query.archived === 'true';
+      const showArchived = req.query.archived === "true";
       const items = await storage.getSourcingItems(showArchived);
       res.json({ success: true, items });
     } catch (error) {
-      console.error('Error fetching sourcing items:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch items',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      console.error("Error fetching sourcing items:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch items",
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });
 
-  app.post('/api/sourcing/items/:rowIndex/archive', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      await storage.archiveSourcingItem(rowIndex);
-      res.json({ success: true, message: 'Item archived successfully' });
-    } catch (error) {
-      console.error('Error archiving sourcing item:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to archive item',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
+  app.post(
+    "/api/sourcing/items/:rowIndex/archive",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        await storage.archiveSourcingItem(rowIndex);
+        res.json({ success: true, message: "Item archived successfully" });
+      } catch (error) {
+        console.error("Error archiving sourcing item:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to archive item",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     }
-  });
+  );
 
-  app.delete('/api/sourcing/items/:rowIndex', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      
-      // Delete from Google Sheets first
-      await googleSheetsService.deleteRow(rowIndex);
-      
-      // Then delete from database
-      await storage.deleteSourcingItem(rowIndex);
-      
-      res.json({ success: true, message: 'Item deleted successfully' });
-    } catch (error) {
-      console.error('Error deleting sourcing item:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to delete item',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
+  app.delete(
+    "/api/sourcing/items/:rowIndex",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+
+        // Delete from Google Sheets first
+        await googleSheetsService.deleteRow(rowIndex);
+
+        // Then delete from database
+        await storage.deleteSourcingItem(rowIndex);
+
+        res.json({ success: true, message: "Item deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting sourcing item:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to delete item",
+          details: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
     }
-  });
+  );
 
-  // New endpoint to fetch purchasing data directly from Google Sheets  
-  app.get('/api/purchasing/sheets', isAuthenticated, async (req, res) => {
+  // New endpoint to fetch purchasing data directly from Google Sheets
+  app.get("/api/purchasing/sheets", isAuthenticated, async (req, res) => {
     try {
       console.log("🔍 Fetching purchasing data directly from Google Sheets...");
-      const { headers, items } = await googleSheetsService.readPurchasingSheet();
-      
-      console.log(`📦 Found ${items.length} items in Purchasing sheet with headers: ${headers.join(', ')}`);
-      
+      const { headers, items } =
+        await googleSheetsService.readPurchasingSheet();
+
+      console.log(
+        `📦 Found ${
+          items.length
+        } items in Purchasing sheet with headers: ${headers.join(", ")}`
+      );
+
       // Return raw data directly from sheets
       res.json({
         success: true,
         headers,
         items,
         totalRows: items.length,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
       });
-      
     } catch (error: any) {
       console.error("❌ Error reading Purchasing Sheet:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message || "Failed to read purchasing data from Google Sheets" 
+      res.status(500).json({
+        success: false,
+        message:
+          error.message || "Failed to read purchasing data from Google Sheets",
       });
     }
   });
 
   // Purchasing Sheet Update Endpoints
-  app.post('/api/purchasing/update-product-review', isAuthenticated, async (req, res) => {
-    try {
-      const { rowIndex, productReview } = req.body;
+  app.post(
+    "/api/purchasing/update-product-review",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { rowIndex, productReview } = req.body;
 
-      if (typeof rowIndex !== 'number' || rowIndex < 0) {
-        return res.status(400).json({ message: "Invalid row index" });
+        if (typeof rowIndex !== "number" || rowIndex < 0) {
+          return res.status(400).json({ message: "Invalid row index" });
+        }
+
+        if (!productReview || productReview.trim() === "") {
+          return res
+            .status(400)
+            .json({ message: "Product review is required" });
+        }
+
+        console.log(
+          `🔄 Updating Purchasing Product Review for row ${rowIndex} to "${productReview}"`
+        );
+
+        const result = await googleSheetsService.updatePurchasingProductReview(
+          rowIndex,
+          productReview
+        );
+
+        res.json({
+          success: true,
+          message: `Product review updated to "${productReview}"`,
+          data: result,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Purchasing Product Review:", error);
+        res.status(500).json({
+          message: "Failed to update product review",
+        });
       }
-
-      if (!productReview || productReview.trim() === '') {
-        return res.status(400).json({ message: "Product review is required" });
-      }
-
-      console.log(`🔄 Updating Purchasing Product Review for row ${rowIndex} to "${productReview}"`);
-      
-      const result = await googleSheetsService.updatePurchasingProductReview(rowIndex, productReview);
-      
-      res.json({
-        success: true,
-        message: `Product review updated to "${productReview}"`,
-        data: result
-      });
-    } catch (error) {
-      console.error("❌ Error updating Purchasing Product Review:", error);
-      res.status(500).json({ 
-        message: "Failed to update product review"
-      });
     }
-  });
+  );
 
-  app.post('/api/purchasing/update-sourcing-method', isAuthenticated, async (req, res) => {
-    try {
-      const { rowIndex, sourcingMethod } = req.body;
+  app.post(
+    "/api/purchasing/update-sourcing-method",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { rowIndex, sourcingMethod } = req.body;
 
-      if (typeof rowIndex !== 'number' || rowIndex < 0) {
-        return res.status(400).json({ message: "Invalid row index" });
+        if (typeof rowIndex !== "number" || rowIndex < 0) {
+          return res.status(400).json({ message: "Invalid row index" });
+        }
+
+        if (!sourcingMethod || sourcingMethod.trim() === "") {
+          return res
+            .status(400)
+            .json({ message: "Sourcing method is required" });
+        }
+
+        console.log(
+          `🔄 Updating Purchasing Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`
+        );
+
+        const result = await googleSheetsService.updatePurchasingSourcingMethod(
+          rowIndex,
+          sourcingMethod
+        );
+
+        res.json({
+          success: true,
+          message: `Sourcing method updated to "${sourcingMethod}"`,
+          data: result,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Purchasing Sourcing Method:", error);
+        res.status(500).json({
+          message: "Failed to update sourcing method",
+        });
       }
-
-      if (!sourcingMethod || sourcingMethod.trim() === '') {
-        return res.status(400).json({ message: "Sourcing method is required" });
-      }
-
-      console.log(`🔄 Updating Purchasing Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`);
-      
-      const result = await googleSheetsService.updatePurchasingSourcingMethod(rowIndex, sourcingMethod);
-      
-      res.json({
-        success: true,
-        message: `Sourcing method updated to "${sourcingMethod}"`,
-        data: result
-      });
-    } catch (error) {
-      console.error("❌ Error updating Purchasing Sourcing Method:", error);
-      res.status(500).json({ 
-        message: "Failed to update sourcing method"
-      });
     }
-  });
+  );
 
-  app.post('/api/purchasing/update-notes', isAuthenticated, async (req, res) => {
-    try {
-      const { rowIndex, notes } = req.body;
+  app.post(
+    "/api/purchasing/update-notes",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { rowIndex, notes } = req.body;
 
-      if (typeof rowIndex !== 'number' || rowIndex < 0) {
-        return res.status(400).json({ message: "Invalid row index" });
+        if (typeof rowIndex !== "number" || rowIndex < 0) {
+          return res.status(400).json({ message: "Invalid row index" });
+        }
+
+        console.log(`🔄 Updating Purchasing Notes for row ${rowIndex}`);
+
+        const result = await googleSheetsService.updatePurchasingNotes(
+          rowIndex,
+          notes || ""
+        );
+
+        res.json({
+          success: true,
+          message: "Notes updated successfully",
+          data: result,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Purchasing Notes:", error);
+        res.status(500).json({
+          message: "Failed to update notes",
+        });
       }
-
-      console.log(`🔄 Updating Purchasing Notes for row ${rowIndex}`);
-      
-      const result = await googleSheetsService.updatePurchasingNotes(rowIndex, notes || '');
-      
-      res.json({
-        success: true,
-        message: "Notes updated successfully",
-        data: result
-      });
-    } catch (error) {
-      console.error("❌ Error updating Purchasing Notes:", error);
-      res.status(500).json({ 
-        message: "Failed to update notes"
-      });
     }
-  });
+  );
 
-  app.post('/api/purchasing/update-status', isAuthenticated, async (req, res) => {
-    try {
-      const { rowIndex, status } = req.body;
+  app.post(
+    "/api/purchasing/update-status",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { rowIndex, status } = req.body;
 
-      if (typeof rowIndex !== 'number' || rowIndex < 0) {
-        return res.status(400).json({ message: "Invalid row index" });
+        if (typeof rowIndex !== "number" || rowIndex < 0) {
+          return res.status(400).json({ message: "Invalid row index" });
+        }
+
+        if (!status || status.trim() === "") {
+          return res.status(400).json({ message: "Status is required" });
+        }
+
+        console.log(
+          `🔄 Updating Purchasing Status for row ${rowIndex} to "${status}"`
+        );
+
+        const result = await googleSheetsService.updatePurchasingStatus(
+          rowIndex,
+          status
+        );
+
+        res.json({
+          success: true,
+          message: `Status updated to "${status}"`,
+          data: result,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Purchasing Status:", error);
+        res.status(500).json({
+          message: "Failed to update status",
+        });
       }
-
-      if (!status || status.trim() === '') {
-        return res.status(400).json({ message: "Status is required" });
-      }
-
-      console.log(`🔄 Updating Purchasing Status for row ${rowIndex} to "${status}"`);
-      
-      const result = await googleSheetsService.updatePurchasingStatus(rowIndex, status);
-      
-      res.json({
-        success: true,
-        message: `Status updated to "${status}"`,
-        data: result
-      });
-    } catch (error) {
-      console.error("❌ Error updating Purchasing Status:", error);
-      res.status(500).json({ 
-        message: "Failed to update status"
-      });
     }
-  });
+  );
 
   // === PrepMyBusiness API Routes ===
-  
+
   // Test PrepMyBusiness API connection
-  app.get('/api/purchasing/test-prepmybusiness', isAuthenticated, async (req, res) => {
-    try {
-      const apiUrl = "https://portal.beeprep.de/api";
-      const apiKey = process.env.PREPMYBUSINESS_API_KEY;
-      const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
+  app.get(
+    "/api/purchasing/test-prepmybusiness",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const apiUrl = "https://portal.beeprep.de/api";
+        const apiKey = process.env.PREPMYBUSINESS_API_KEY;
+        const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
 
-      if (!apiKey || !merchantId) {
-        return res.status(500).json({ 
-          message: 'PrepMyBusiness API credentials not configured' 
+        if (!apiKey || !merchantId) {
+          return res.status(500).json({
+            message: "PrepMyBusiness API credentials not configured",
+          });
+        }
+
+        // Test different endpoints to see what's available
+        const testEndpoints = [
+          `${apiUrl}/health`,
+          `${apiUrl}/status`,
+          `${apiUrl}/v1`,
+          `${apiUrl}/merchants`,
+          `${apiUrl}/products`,
+          `${apiUrl}/shipments`,
+        ];
+
+        const results = [];
+
+        for (const endpoint of testEndpoints) {
+          try {
+            console.log(`🔍 Testing endpoint: ${endpoint}`);
+            const response = await fetch(endpoint, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "X-Merchant-ID": merchantId,
+                Accept: "application/json",
+              },
+            });
+
+            results.push({
+              endpoint,
+              status: response.status,
+              ok: response.ok,
+              contentType: response.headers.get("content-type"),
+            });
+          } catch (error) {
+            results.push({
+              endpoint,
+              error: error.message,
+            });
+          }
+        }
+
+        res.json({
+          success: true,
+          message: "API endpoint test completed",
+          results,
+          credentials: {
+            apiUrl,
+            hasApiKey: !!apiKey,
+            hasMerchantId: !!merchantId,
+          },
+        });
+      } catch (error) {
+        console.error("Error testing PrepMyBusiness API:", error);
+        res.status(500).json({
+          message: "Failed to test API connection",
+          error: error.message,
         });
       }
-
-      // Test different endpoints to see what's available
-      const testEndpoints = [
-        `${apiUrl}/health`,
-        `${apiUrl}/status`, 
-        `${apiUrl}/v1`,
-        `${apiUrl}/merchants`,
-        `${apiUrl}/products`,
-        `${apiUrl}/shipments`,
-      ];
-
-      const results = [];
-      
-      for (const endpoint of testEndpoints) {
-        try {
-          console.log(`🔍 Testing endpoint: ${endpoint}`);
-          const response = await fetch(endpoint, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'X-Merchant-ID': merchantId,
-              'Accept': 'application/json',
-            },
-          });
-
-          results.push({
-            endpoint,
-            status: response.status,
-            ok: response.ok,
-            contentType: response.headers.get('content-type')
-          });
-        } catch (error) {
-          results.push({
-            endpoint,
-            error: error.message
-          });
-        }
-      }
-
-      res.json({ 
-        success: true,
-        message: 'API endpoint test completed',
-        results,
-        credentials: {
-          apiUrl,
-          hasApiKey: !!apiKey,
-          hasMerchantId: !!merchantId,
-        }
-      });
-
-    } catch (error) {
-      console.error('Error testing PrepMyBusiness API:', error);
-      res.status(500).json({ 
-        message: 'Failed to test API connection',
-        error: error.message 
-      });
     }
-  });
-  
+  );
+
   // Create shipment via PrepMyBusiness API (3-step process)
-  app.post('/api/purchasing/create-shipment', isAuthenticated, async (req, res) => {
-    try {
-      const { asin, brand, buyPrice, productName, quantity } = req.body;
-      
-      if (!asin || !brand || !buyPrice || !productName || !quantity) {
-        return res.status(400).json({ 
-          message: 'ASIN, brand, buy price, product name, and quantity are required' 
-        });
-      }
+  app.post(
+    "/api/purchasing/create-shipment",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const { asin, brand, buyPrice, productName, quantity } = req.body;
 
-      const apiUrl = "https://portal.beeprep.de/api";
-      const apiKey = process.env.PREPMYBUSINESS_API_KEY;
-      const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
-
-      if (!apiKey || !merchantId) {
-        return res.status(500).json({ 
-          message: 'PrepMyBusiness API credentials not configured' 
-        });
-      }
-
-      console.log('🚛 Starting PrepMyBusiness shipment creation for:', { asin, brand, buyPrice, productName, quantity });
-
-      // STEP 1: Create inventory item
-      const buyPriceNum = parseFloat(buyPrice) || 0;
-      const merchantSku = storage.generateSKU(brand, buyPriceNum, asin);
-      console.log('🏷️ Generated SKU:', merchantSku);
-      
-      const inventoryPayload = {
-        merchant_sku: merchantSku,
-        title: productName,
-        condition: "new"
-      };
-
-      console.log('📦 Step 1: Creating inventory item:', inventoryPayload);
-
-      const inventoryResponse = await fetch(`${apiUrl}/inventory`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json',
-          'X-Selected-Client-Id': merchantId,
-        },
-        body: JSON.stringify(inventoryPayload),
-      });
-
-      if (!inventoryResponse.ok) {
-        const errorText = await inventoryResponse.text();
-        console.error('❌ Failed to create inventory item:', inventoryResponse.status, errorText);
-        return res.status(inventoryResponse.status).json({ 
-          message: `Failed to create inventory item: ${inventoryResponse.status}`,
-          details: errorText 
-        });
-      }
-
-      const inventoryResult = await inventoryResponse.json();
-      console.log('📝 Step 1: Full inventory API response:', JSON.stringify(inventoryResult, null, 2));
-      
-      // Handle different possible response structures
-      let itemId;
-      if (inventoryResult.item_details?.id) {
-        itemId = inventoryResult.item_details.id;
-      } else if (inventoryResult.id) {
-        itemId = inventoryResult.id;
-      } else if (inventoryResult.data?.id) {
-        itemId = inventoryResult.data.id;
-      } else {
-        console.error('❌ Unexpected inventory response structure:', inventoryResult);
-        return res.status(500).json({ 
-          message: 'Unexpected inventory API response structure',
-          details: 'Could not find item ID in response',
-          response: inventoryResult
-        });
-      }
-      
-      console.log('✅ Step 1: Inventory item created successfully with ID:', itemId);
-
-      // STEP 2: Create shipment
-      const shipmentPayload = {
-        name: productName,
-        notes: `Automated shipment for ASIN: ${asin}`,
-        warehouse_id: '477'
-      };
-
-      console.log('🚢 Step 2: Creating shipment:', shipmentPayload);
-
-      const shipmentResponse = await fetch(`${apiUrl}/shipments/inbound?api_token=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Selected-Client-Id': merchantId,
-        },
-        body: JSON.stringify(shipmentPayload),
-      });
-
-      if (!shipmentResponse.ok) {
-        const errorText = await shipmentResponse.text();
-        console.error('❌ Failed to create shipment:', shipmentResponse.status, errorText);
-        return res.status(shipmentResponse.status).json({ 
-          message: `Failed to create shipment: ${shipmentResponse.status}`,
-          details: errorText 
-        });
-      }
-
-      const shipmentResult = await shipmentResponse.json();
-      console.log('📝 Step 2: Full shipment API response:', JSON.stringify(shipmentResult, null, 2));
-      
-      // Handle different possible response structures
-      let shipmentId;
-      if (shipmentResult.id) {
-        shipmentId = shipmentResult.id;
-      } else if (shipmentResult.data?.id) {
-        shipmentId = shipmentResult.data.id;
-      } else if (shipmentResult.shipment?.id) {
-        shipmentId = shipmentResult.shipment.id;
-      } else if (shipmentResult.shipment_id) {  // Add this block
-        shipmentId = shipmentResult.shipment_id;
-      } else {
-        console.error('❌ Unexpected shipment response structure:', shipmentResult);
-        return res.status(500).json({ 
-          message: 'Unexpected shipment API response structure',
-          details: 'Could not find shipment ID in response',
-          response: shipmentResult
-        });
-      }
-
-      
-      console.log('✅ Step 2: Shipment created successfully with ID:', shipmentId);
-
-      // STEP 3: Add item to shipment
-      const addItemPayload = {
-        item_id: itemId,
-        quantity: parseInt(quantity)
-      };
-
-      console.log('➕ Step 3: Adding item to shipment:', addItemPayload);
-
-      const addItemResponse = await fetch(`${apiUrl}/shipments/inbound/${shipmentId}/add-item?api_token=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Selected-Client-Id': merchantId,
-        },
-        body: JSON.stringify(addItemPayload),
-      });
-
-      if (!addItemResponse.ok) {
-        const errorText = await addItemResponse.text();
-        console.error('❌ Failed to add item to shipment:', addItemResponse.status, errorText);
-        return res.status(addItemResponse.status).json({ 
-          message: `Failed to add item to shipment: ${addItemResponse.status}`,
-          details: errorText 
-        });
-      }
-
-      const addItemResult = await addItemResponse.json();
-      console.log('✅ Step 3: Item added to shipment successfully:', addItemResult);
-
-      res.json({ 
-        success: true, 
-        message: 'Shipment created successfully via PrepMyBusiness',
-        data: {
-          inventoryItem: {
-            id: itemId,
-            merchantSku: merchantSku
-          },
-          shipment: {
-            id: shipmentId,
-            name: productName
-          },
-          quantity: parseInt(quantity)
+        if (!asin || !brand || !buyPrice || !productName || !quantity) {
+          return res.status(400).json({
+            message:
+              "ASIN, brand, buy price, product name, and quantity are required",
+          });
         }
-      });
 
-    } catch (error) {
-      console.error('❌ Error creating PrepMyBusiness shipment:', error);
-      res.status(500).json({ 
-        message: 'Failed to create shipment',
-        error: error.message 
-      });
+        const apiUrl = "https://portal.beeprep.de/api";
+        const apiKey = process.env.PREPMYBUSINESS_API_KEY;
+        const merchantId = process.env.PREPMYBUSINESS_MERCHANT_ID;
+
+        if (!apiKey || !merchantId) {
+          return res.status(500).json({
+            message: "PrepMyBusiness API credentials not configured",
+          });
+        }
+
+        console.log("🚛 Starting PrepMyBusiness shipment creation for:", {
+          asin,
+          brand,
+          buyPrice,
+          productName,
+          quantity,
+        });
+
+        // STEP 1: Create inventory item
+        const buyPriceNum = parseFloat(buyPrice) || 0;
+        const merchantSku = storage.generateSKU(brand, buyPriceNum, asin);
+        console.log("🏷️ Generated SKU:", merchantSku);
+
+        const inventoryPayload = {
+          merchant_sku: merchantSku,
+          title: productName,
+          condition: "new",
+        };
+
+        console.log("📦 Step 1: Creating inventory item:", inventoryPayload);
+
+        const inventoryResponse = await fetch(`${apiUrl}/inventory`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+            "X-Selected-Client-Id": merchantId,
+          },
+          body: JSON.stringify(inventoryPayload),
+        });
+
+        if (!inventoryResponse.ok) {
+          const errorText = await inventoryResponse.text();
+          console.error(
+            "❌ Failed to create inventory item:",
+            inventoryResponse.status,
+            errorText
+          );
+          return res.status(inventoryResponse.status).json({
+            message: `Failed to create inventory item: ${inventoryResponse.status}`,
+            details: errorText,
+          });
+        }
+
+        const inventoryResult = await inventoryResponse.json();
+        console.log(
+          "📝 Step 1: Full inventory API response:",
+          JSON.stringify(inventoryResult, null, 2)
+        );
+
+        // Handle different possible response structures
+        let itemId;
+        if (inventoryResult.item_details?.id) {
+          itemId = inventoryResult.item_details.id;
+        } else if (inventoryResult.id) {
+          itemId = inventoryResult.id;
+        } else if (inventoryResult.data?.id) {
+          itemId = inventoryResult.data.id;
+        } else {
+          console.error(
+            "❌ Unexpected inventory response structure:",
+            inventoryResult
+          );
+          return res.status(500).json({
+            message: "Unexpected inventory API response structure",
+            details: "Could not find item ID in response",
+            response: inventoryResult,
+          });
+        }
+
+        console.log(
+          "✅ Step 1: Inventory item created successfully with ID:",
+          itemId
+        );
+
+        // STEP 2: Create shipment
+        const shipmentPayload = {
+          name: productName,
+          notes: `Automated shipment for ASIN: ${asin}`,
+          warehouse_id: "477",
+        };
+
+        console.log("🚢 Step 2: Creating shipment:", shipmentPayload);
+
+        const shipmentResponse = await fetch(
+          `${apiUrl}/shipments/inbound?api_token=${apiKey}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "X-Selected-Client-Id": merchantId,
+            },
+            body: JSON.stringify(shipmentPayload),
+          }
+        );
+
+        if (!shipmentResponse.ok) {
+          const errorText = await shipmentResponse.text();
+          console.error(
+            "❌ Failed to create shipment:",
+            shipmentResponse.status,
+            errorText
+          );
+          return res.status(shipmentResponse.status).json({
+            message: `Failed to create shipment: ${shipmentResponse.status}`,
+            details: errorText,
+          });
+        }
+
+        const shipmentResult = await shipmentResponse.json();
+        console.log(
+          "📝 Step 2: Full shipment API response:",
+          JSON.stringify(shipmentResult, null, 2)
+        );
+
+        // Handle different possible response structures
+        let shipmentId;
+        if (shipmentResult.id) {
+          shipmentId = shipmentResult.id;
+        } else if (shipmentResult.data?.id) {
+          shipmentId = shipmentResult.data.id;
+        } else if (shipmentResult.shipment?.id) {
+          shipmentId = shipmentResult.shipment.id;
+        } else if (shipmentResult.shipment_id) {
+          // Add this block
+          shipmentId = shipmentResult.shipment_id;
+        } else {
+          console.error(
+            "❌ Unexpected shipment response structure:",
+            shipmentResult
+          );
+          return res.status(500).json({
+            message: "Unexpected shipment API response structure",
+            details: "Could not find shipment ID in response",
+            response: shipmentResult,
+          });
+        }
+
+        console.log(
+          "✅ Step 2: Shipment created successfully with ID:",
+          shipmentId
+        );
+
+        // STEP 3: Add item to shipment
+        const addItemPayload = {
+          item_id: itemId,
+          quantity: parseInt(quantity),
+        };
+
+        console.log("➕ Step 3: Adding item to shipment:", addItemPayload);
+
+        const addItemResponse = await fetch(
+          `${apiUrl}/shipments/inbound/${shipmentId}/add-item?api_token=${apiKey}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "X-Selected-Client-Id": merchantId,
+            },
+            body: JSON.stringify(addItemPayload),
+          }
+        );
+
+        if (!addItemResponse.ok) {
+          const errorText = await addItemResponse.text();
+          console.error(
+            "❌ Failed to add item to shipment:",
+            addItemResponse.status,
+            errorText
+          );
+          return res.status(addItemResponse.status).json({
+            message: `Failed to add item to shipment: ${addItemResponse.status}`,
+            details: errorText,
+          });
+        }
+
+        const addItemResult = await addItemResponse.json();
+        console.log(
+          "✅ Step 3: Item added to shipment successfully:",
+          addItemResult
+        );
+
+        res.json({
+          success: true,
+          message: "Shipment created successfully via PrepMyBusiness",
+          data: {
+            inventoryItem: {
+              id: itemId,
+              merchantSku: merchantSku,
+            },
+            shipment: {
+              id: shipmentId,
+              name: productName,
+            },
+            quantity: parseInt(quantity),
+          },
+        });
+      } catch (error) {
+        console.error("❌ Error creating PrepMyBusiness shipment:", error);
+        res.status(500).json({
+          message: "Failed to create shipment",
+          error: error.message,
+        });
+      }
     }
-  });
+  );
 
   // Purchasing Files Endpoints
-  app.post('/api/purchasing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: 'No file uploaded' });
+  app.post(
+    "/api/purchasing/files/upload",
+    isAuthenticated,
+    upload.single("file"),
+    async (req: any, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const { rowIndex, asin } = req.body;
+        const userId = req.user.claims.sub;
+
+        if (!rowIndex || !asin) {
+          return res
+            .status(400)
+            .json({ message: "Row index and ASIN are required" });
+        }
+
+        const fileData = {
+          userId,
+          rowIndex: parseInt(rowIndex),
+          asin,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          fileSize: req.file.size,
+          filePath: req.file.path,
+        };
+
+        const file = await storage.createPurchasingFile(fileData);
+        res.json({ success: true, file });
+      } catch (error) {
+        console.error("Error uploading purchasing file:", error);
+        res.status(500).json({ message: "Failed to upload file" });
       }
+    }
+  );
 
-      const { rowIndex, asin } = req.body;
-      const userId = req.user.claims.sub;
-
-      if (!rowIndex || !asin) {
-        return res.status(400).json({ message: 'Row index and ASIN are required' });
+  app.get(
+    "/api/purchasing/files/:rowIndex",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        const files = await storage.getPurchasingFilesByRow(rowIndex);
+        res.json({ files });
+      } catch (error) {
+        console.error("Error fetching purchasing files:", error);
+        res.status(500).json({ message: "Failed to fetch files" });
       }
-
-      const fileData = {
-        userId,
-        rowIndex: parseInt(rowIndex),
-        asin,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        fileSize: req.file.size,
-        filePath: req.file.path
-      };
-
-      const file = await storage.createPurchasingFile(fileData);
-      res.json({ success: true, file });
-
-    } catch (error) {
-      console.error('Error uploading purchasing file:', error);
-      res.status(500).json({ message: 'Failed to upload file' });
     }
-  });
+  );
 
-  app.get('/api/purchasing/files/:rowIndex', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const files = await storage.getPurchasingFilesByRow(rowIndex);
-      res.json({ files });
-    } catch (error) {
-      console.error('Error fetching purchasing files:', error);
-      res.status(500).json({ message: 'Failed to fetch files' });
+  app.delete(
+    "/api/purchasing/files/:fileId",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const fileId = req.params.fileId;
+        await storage.deletePurchasingFile(fileId);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error deleting purchasing file:", error);
+        res.status(500).json({ message: "Failed to delete file" });
+      }
     }
-  });
+  );
 
-  app.delete('/api/purchasing/files/:fileId', isAuthenticated, async (req, res) => {
-    try {
-      const fileId = req.params.fileId;
-      await storage.deletePurchasingFile(fileId);
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error deleting purchasing file:', error);
-      res.status(500).json({ message: 'Failed to delete file' });
-    }
-  });
-
-  app.get('/api/purchasing/files/download/:fileId', async (req, res) => {
+  app.get("/api/purchasing/files/download/:fileId", async (req, res) => {
     try {
       const fileId = req.params.fileId;
       const file = await storage.getPurchasingFile(fileId);
-      
+
       if (!file) {
-        return res.status(404).json({ message: 'File not found' });
+        return res.status(404).json({ message: "File not found" });
       }
 
       res.download(file.filePath, file.originalName);
     } catch (error) {
-      console.error('Error downloading purchasing file:', error);
-      res.status(500).json({ message: 'Failed to download file' });
+      console.error("Error downloading purchasing file:", error);
+      res.status(500).json({ message: "Failed to download file" });
     }
   });
 
   // Purchasing Items Endpoints
-  app.post('/api/purchasing/items/save', isAuthenticated, async (req: any, res) => {
-    try {
-      const items = req.body;
-      const userId = req.user.claims.sub;
-
-      if (!Array.isArray(items)) {
-        return res.status(400).json({ message: 'Items must be an array' });
-      }
-
-      // Sanitize all numeric fields to prevent database parsing errors
-      const sanitizeNumericValue = (value: any): string | null => {
-        if (value === null || value === undefined) return null;
-        
-        const str = String(value).trim();
-        if (str === '') return null;
-        
-        // Remove currency symbols, percentages, spaces
-        let cleaned = str.replace(/[€$£¥₹%]/g, "").replace(/\s/g, "");
-        
-        // Convert European decimal comma to dot
-        cleaned = cleaned.replace(/,/g, ".");
-        
-        return cleaned || null;
-      };
-
-      let failedCount = 0;
-      const failedItems: any[] = [];
-      
-      const cleanedItems = items.map((item, index) => {
-        try {
-          const cleanedItem: any = { ...item };
-          
-          // Sanitize all potentially numeric fields
-          const numericFields = ['costPrice', 'salePrice', 'profit', 'profitMargin', 'roi', 
-                                'buyBoxAverage90Days', 'revenue', 'spent', 'transfer', 'woVat',
-                                'estimatedSales', 'fbaSellerCount', 'fbmSellerCount',
-                                'Cost Price', 'Sale Price', 'Profit', 'Profit Margin', 'R.O.I.',
-                                'Buy Box (Average Last 90 Days)', 'Revenue', 'Spent', 'Transfer', 'wo VAT',
-                                'Estimated Sales', 'FBA Seller Count', 'FBM Seller Count'];
-          
-          numericFields.forEach(field => {
-            if (cleanedItem[field] !== undefined) {
-              cleanedItem[field] = sanitizeNumericValue(cleanedItem[field]);
-            }
-          });
-          
-          return cleanedItem;
-        } catch (error) {
-          console.error(`❌ Error sanitizing item ${index}:`, error);
-          failedCount++;
-          failedItems.push({ index, error: error.message });
-          return item; // Return original on sanitization error
-        }
-      });
-
-
+  app.post(
+    "/api/purchasing/items/save",
+    isAuthenticated,
+    async (req: any, res) => {
       try {
-        await storage.savePurchasingItems(cleanedItems, userId);
-        console.log(`✅ Successfully saved all ${cleanedItems.length} purchasing items`);
-        res.json({ success: true, saved: cleanedItems.length, failed: failedCount });
-      } catch (error) {
-        console.error(`❌ Database save failed:`, error);
-        failedCount = cleanedItems.length; // All failed if database error
-        res.status(400).json({ 
-          success: false, 
-          message: 'Failed to save items to database',
-          saved: 0,
-          failed: failedCount,
-          error: error.message
+        const items = req.body;
+        const userId = req.user.claims.sub;
+
+        if (!Array.isArray(items)) {
+          return res.status(400).json({ message: "Items must be an array" });
+        }
+
+        // Sanitize all numeric fields to prevent database parsing errors
+        const sanitizeNumericValue = (value: any): string | null => {
+          if (value === null || value === undefined) return null;
+
+          const str = String(value).trim();
+          if (str === "") return null;
+
+          // Remove currency symbols, percentages, spaces
+          let cleaned = str.replace(/[€$£¥₹%]/g, "").replace(/\s/g, "");
+
+          // Convert European decimal comma to dot
+          cleaned = cleaned.replace(/,/g, ".");
+
+          return cleaned || null;
+        };
+
+        let failedCount = 0;
+        const failedItems: any[] = [];
+
+        const cleanedItems = items.map((item, index) => {
+          try {
+            const cleanedItem: any = { ...item };
+
+            // Sanitize all potentially numeric fields
+            const numericFields = [
+              "costPrice",
+              "salePrice",
+              "profit",
+              "profitMargin",
+              "roi",
+              "buyBoxAverage90Days",
+              "revenue",
+              "spent",
+              "transfer",
+              "woVat",
+              "estimatedSales",
+              "fbaSellerCount",
+              "fbmSellerCount",
+              "Cost Price",
+              "Sale Price",
+              "Profit",
+              "Profit Margin",
+              "R.O.I.",
+              "Buy Box (Average Last 90 Days)",
+              "Revenue",
+              "Spent",
+              "Transfer",
+              "wo VAT",
+              "Estimated Sales",
+              "FBA Seller Count",
+              "FBM Seller Count",
+            ];
+
+            numericFields.forEach((field) => {
+              if (cleanedItem[field] !== undefined) {
+                cleanedItem[field] = sanitizeNumericValue(cleanedItem[field]);
+              }
+            });
+
+            return cleanedItem;
+          } catch (error) {
+            console.error(`❌ Error sanitizing item ${index}:`, error);
+            failedCount++;
+            failedItems.push({ index, error: error.message });
+            return item; // Return original on sanitization error
+          }
         });
+
+        try {
+          await storage.savePurchasingItems(cleanedItems, userId);
+          console.log(
+            `✅ Successfully saved all ${cleanedItems.length} purchasing items`
+          );
+          res.json({
+            success: true,
+            saved: cleanedItems.length,
+            failed: failedCount,
+          });
+        } catch (error) {
+          console.error(`❌ Database save failed:`, error);
+          failedCount = cleanedItems.length; // All failed if database error
+          res.status(400).json({
+            success: false,
+            message: "Failed to save items to database",
+            saved: 0,
+            failed: failedCount,
+            error: error.message,
+          });
+        }
+      } catch (error) {
+        console.error("Error saving purchasing items:", error);
+        res.status(500).json({ message: "Failed to save items" });
       }
-
-    } catch (error) {
-      console.error('Error saving purchasing items:', error);
-      res.status(500).json({ message: 'Failed to save items' });
     }
-  });
+  );
 
-  app.post('/api/purchasing/items/:rowIndex/archive', isAuthenticated, async (req: any, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const userId = req.user.claims.sub;
+  app.post(
+    "/api/purchasing/items/:rowIndex/archive",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        const userId = req.user.claims.sub;
 
-      await storage.archivePurchasingItem(rowIndex, userId);
-      res.json({ success: true });
-
-    } catch (error) {
-      console.error('Error archiving purchasing item:', error);
-      res.status(500).json({ message: 'Failed to archive item' });
+        await storage.archivePurchasingItem(rowIndex, userId);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error archiving purchasing item:", error);
+        res.status(500).json({ message: "Failed to archive item" });
+      }
     }
-  });
+  );
 
-  app.delete('/api/purchasing/items/:rowIndex', isAuthenticated, async (req: any, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      
-      await storage.deletePurchasingItem(rowIndex);
-      res.json({ success: true });
+  app.delete(
+    "/api/purchasing/items/:rowIndex",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
 
-    } catch (error) {
-      console.error('Error deleting purchasing item:', error);
-      res.status(500).json({ message: 'Failed to delete item' });
+        await storage.deletePurchasingItem(rowIndex);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error deleting purchasing item:", error);
+        res.status(500).json({ message: "Failed to delete item" });
+      }
     }
-  });
+  );
 
-  app.get('/api/purchasing/items', isAuthenticated, async (req, res) => {
+  app.get("/api/purchasing/items", isAuthenticated, async (req, res) => {
     try {
       const { archived } = req.query;
       const options: any = {};
-      
-      if (archived === 'true') {
+
+      if (archived === "true") {
         options.archived = true;
       }
 
       const items = await storage.getPurchasingItems(options);
       res.json(items);
-
     } catch (error) {
-      console.error('Error fetching purchasing items:', error);
-      res.status(500).json({ message: 'Failed to fetch items' });
+      console.error("Error fetching purchasing items:", error);
+      res.status(500).json({ message: "Failed to fetch items" });
     }
   });
 
   // New endpoint to update Product Review in Google Sheets
-  app.patch('/api/sourcing/sheets/:rowIndex/product-review', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const { productReview } = req.body;
-
-      if (isNaN(rowIndex) || rowIndex < 0) {
-        return res.status(400).json({ success: false, message: "Invalid row index" });
-      }
-
-      if (!productReview || productReview.trim() === '') {
-        return res.status(400).json({ success: false, message: "Product review value is required" });
-      }
-
-      console.log(`🔄 Updating Product Review for row ${rowIndex} to "${productReview}"`);
-      
-      const result = await googleSheetsService.updateProductReview(rowIndex, productReview);
-      
-      res.json({
-        success: true,
-        message: `Product review updated to "${productReview}" for row ${rowIndex + 1}`,
-        rowIndex,
-        newValue: productReview
-      });
-    } catch (error) {
-      console.error("❌ Error updating Product Review:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to update Product Review in Google Sheets",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // New endpoint to update Notes in Google Sheets
-  app.patch('/api/sourcing/sheets/:rowIndex/notes', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const { notes } = req.body;
-
-      if (isNaN(rowIndex) || rowIndex < 0) {
-        return res.status(400).json({ success: false, message: "Invalid row index" });
-      }
-
-      if (notes === undefined || notes === null) {
-        return res.status(400).json({ success: false, message: "Notes value is required" });
-      }
-
-      console.log(`🔄 Updating Notes for row ${rowIndex} to "${notes}"`);
-      
-      const result = await googleSheetsService.updateNotes(rowIndex, notes);
-      
-      res.json({
-        success: true,
-        message: `Notes updated for row ${rowIndex + 1}`,
-        rowIndex,
-        newValue: notes
-      });
-    } catch (error) {
-      console.error("❌ Error updating Notes:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to update Notes in Google Sheets",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // New endpoint to update Sourcing Method in Google Sheets
-  app.patch('/api/sourcing/sheets/:rowIndex/sourcing-method', isAuthenticated, async (req, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const { sourcingMethod } = req.body;
-
-      if (isNaN(rowIndex) || rowIndex < 0) {
-        return res.status(400).json({ success: false, message: "Invalid row index" });
-      }
-
-      if (!sourcingMethod || sourcingMethod.trim() === '') {
-        return res.status(400).json({ success: false, message: "Sourcing method value is required" });
-      }
-
-      console.log(`🔄 Updating Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`);
-      
-      const result = await googleSheetsService.updateSourcingMethod(rowIndex, sourcingMethod);
-      
-      res.json({
-        success: true,
-        message: `Sourcing method updated to "${sourcingMethod}" for row ${rowIndex + 1}`,
-        rowIndex,
-        newValue: sourcingMethod
-      });
-    } catch (error) {
-      console.error("❌ Error updating Sourcing Method:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Failed to update Sourcing Method in Google Sheets",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  app.post('/api/integrations/google-sheets/import', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub; // Use authenticated user
-      const { headers, items } = await readSourcingSheet();
-
-      console.log(`🔍 Found ${items.length} total rows in Google Sheets`);
-
-      // Header-Normalisierung (trim + lower)
-      const norm = (s: any) => String(s || "").trim();
-      const pick = (row: Record<string,string>, ...aliases: string[]) => {
-        for (const a of aliases) {
-          const key = Object.keys(row).find(k => norm(k).toLowerCase() === norm(a).toLowerCase());
-          if (key) return row[key];
-        }
-        return "";
-      };
-
-      const cleaned = items
-        .map((raw, index) => {
-          // New simplified column mapping
-          const date         = pick(raw, "Export Date (UTC yyyy-mm-dd)");
-          const asin         = pick(raw, "ASIN");
-          const quantity     = pick(raw, "Quantity");
-          const sourceUrl    = pick(raw, "Source URL");
-          const tags         = pick(raw, "Tags");
-          const notes        = pick(raw, "All Notes");
-          const costPrice    = parseMoneySmart(pick(raw, "Cost Price"));
-          const salePrice    = parseMoneySmart(pick(raw, "Sale Price"));
-          const marketplace  = pick(raw, "Sales Marketplace");
-          const estimatedSalesStr = pick(raw, "Estimated Sales");
-
-          // Skip completely empty rows
-          const allEmpty = [asin, sourceUrl, costPrice, salePrice].every(v => !String(v || "").trim());
-          if (allEmpty) return null;
-
-          // ASIN is required
-          if (!String(asin || "").trim()) {
-            console.log(`⚠️ Row ${index + 2}: Skipping - no ASIN`);
-            return null;
-          }
-
-          // Parse numeric values safely
-          const estimatedSalesNum = parseNumericValue(estimatedSalesStr);
-          const profit = salePrice - costPrice;
-
-          // Generate a simple product name from ASIN if not available
-          const productName = `Product ${String(asin).trim()}`;
-
-          return {
-            datum: date ? new Date(date) : new Date(),
-            imageUrl: null,
-            brand: null, // Not available in simplified format
-            productName: productName,
-            asin: String(asin).trim(),
-            eanBarcode: null,
-            sourceUrl: sourceUrl || null,
-            amazonUrl: null,
-            costPrice: costPrice.toString(),
-            salePrice: salePrice.toString(),
-            profit: profit.toString(),
-            profitMargin: salePrice > 0 ? ((profit / salePrice) * 100).toString() : "0",
-            roi: costPrice > 0 ? ((profit / costPrice) * 100).toString() : "0",
-            estimatedSales: estimatedSalesNum?.toString() || null,
-            fbaSellerCount: null,
-            fbmSellerCount: null,
-            productReview: null,
-            notes: [
-              notes,
-              quantity ? `Menge: ${quantity}` : null,
-              tags ? `Tags: ${tags}` : null, 
-              marketplace ? `Marktplatz: ${marketplace}` : null
-            ].filter(Boolean).join(' | ') || null,
-            sourcingMethod: 'google-sheets-simplified',
-            submittedBy: userId,
-            status: 'new'
-          };
-        })
-        .filter(Boolean) as any[];
-
-      console.log(`✅ Processed ${cleaned.length} valid rows`);
-
-      let importedCount = 0;
-      const errors: string[] = [];
-
-      // Save each item to database
-      for (let i = 0; i < cleaned.length; i++) {
-        const item = cleaned[i];
-        const rowNumber = i + 2; // +2 because we skipped header and are 1-indexed
-
-        try {
-          // Check if ASIN already exists to avoid duplicates
-          const existingSourcing = await storage.getSourcingByAsin(item.asin);
-          if (existingSourcing) {
-            console.log(`⚠️ Row ${rowNumber}: Skipping duplicate ASIN ${item.asin}`);
-            continue;
-          }
-
-          // Save to database
-          await storage.createSourcing(item);
-          importedCount++;
-          console.log(`✅ Row ${rowNumber}: Imported ${item.productName} (${item.asin})`);
-
-        } catch (error) {
-          console.error(`❌ Row ${rowNumber}: Error saving ${item.productName}:`, error);
-          errors.push(`Zeile ${rowNumber}: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
-        }
-      }
-
-      // Log activity
-      await storage.logActivity({
-        userId,
-        action: 'google_sheets_import',
-        entityType: 'sourcing',
-        entityId: 'bulk_import',
-        description: `Google Sheets Import: ${importedCount} Deals importiert`,
-      });
-
-      console.log(`🎉 Import completed: ${importedCount}/${cleaned.length} items saved`);
-
-      // Verify data was saved
-      const allSourcing = await storage.getSourcing({ limit: 100 });
-      console.log(`📊 Database now contains ${allSourcing.length} sourcing items`);
-
-      res.json({
-        success: true,
-        message: `Import abgeschlossen: ${importedCount} von ${cleaned.length} Zeilen importiert`,
-        importedRows: importedCount,
-        totalRows: cleaned.length,
-        skippedDuplicates: cleaned.length - importedCount - errors.length,
-        databaseCount: allSourcing.length,
-        errors: errors.slice(0, 10) // Limit errors to first 10
-      });
-
-    } catch (e: any) {
-      console.error("❌ Google Sheets import error:", e);
-      res.status(500).json({
-        success: false,
-        message: `Google Sheets Import fehlgeschlagen: ${e?.message || e}`,
-        errors: [String(e?.message || e)],
-      });
-    }
-  });
-
-  app.post('/api/integrations/keepa/buybox', isAuthenticated, async (req: any, res) => {
-    try {
-      const { asin } = req.body;
-      
-      // Mock Keepa API call for BuyBox data
-      setTimeout(() => {
-        res.json({
-          success: true,
-          asin,
-          buyBox: {
-            current: (Math.random() * 100 + 50).toFixed(2),
-            avg90Days: (Math.random() * 100 + 50).toFixed(2),
-            currency: 'EUR'
-          },
-          lastUpdated: new Date().toISOString()
-        });
-      }, 1000);
-    } catch (error) {
-      res.status(500).json({ message: "Keepa API call failed" });
-    }
-  });
-
-  // File upload endpoints for sourcing items
-  app.post('/api/sourcing/files/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, message: 'No file uploaded' });
-      }
-
-      const { rowIndex, asin } = req.body;
-      const userId = req.user.claims.sub;
-
-      if (!rowIndex || !asin) {
-        return res.status(400).json({ success: false, message: 'Row index and ASIN are required' });
-      }
-
-      const fileInfo = {
-        rowIndex: parseInt(rowIndex),
-        asin,
-        originalName: req.file.originalname,
-        fileName: req.file.filename,
-        filePath: req.file.path,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        uploadedBy: userId,
-      };
-
-      const savedFile = await storage.saveFileInfo(fileInfo);
-
-      res.json({
-        success: true,
-        message: 'File uploaded successfully',
-        file: savedFile,
-      });
-    } catch (error) {
-      console.error('❌ Error uploading file:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to upload file',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  // Get files for a specific row
-  app.get('/api/sourcing/files/:rowIndex', isAuthenticated, async (req: any, res) => {
-    try {
-      const rowIndex = parseInt(req.params.rowIndex);
-      const userId = req.user.claims.sub;
-      
-      if (isNaN(rowIndex)) {
-        return res.status(400).json({ success: false, message: 'Invalid row index' });
-      }
-
-      // Get all files for this row
-      const files = await storage.getFilesByRowIndex(rowIndex);
-      
-      // Filter files to only include those uploaded by the current user
-      const userFiles = files.filter(file => file.uploadedBy === userId);
-
-      res.json({
-        success: true,
-        files: userFiles,
-      });
-    } catch (error) {
-      console.error('❌ Error fetching files:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch files',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  // Download file
-  app.get('/api/sourcing/files/download/:fileId', isAuthenticated, async (req: any, res) => {
-    try {
-      const fileId = req.params.fileId;
-      const userId = req.user.claims.sub;
-      const file = await storage.getFileById(fileId);
-
-      if (!file) {
-        return res.status(404).json({ success: false, message: 'File not found' });
-      }
-
-      // Check if user owns this file
-      if (file.uploadedBy !== userId) {
-        return res.status(403).json({ success: false, message: 'Access denied' });
-      }
-
-      if (!fs.existsSync(file.filePath)) {
-        return res.status(404).json({ success: false, message: 'File not found on disk' });
-      }
-
-      res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
-      res.setHeader('Content-Type', file.mimeType);
-      res.sendFile(path.resolve(file.filePath));
-    } catch (error) {
-      console.error('❌ Error downloading file:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to download file',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  // Delete file
-  app.delete('/api/sourcing/files/:fileId', isAuthenticated, async (req: any, res) => {
-    try {
-      const fileId = req.params.fileId;
-      const userId = req.user.claims.sub;
-      const file = await storage.getFileById(fileId);
-
-      if (!file) {
-        return res.status(404).json({ success: false, message: 'File not found' });
-      }
-
-      // Check if user owns this file
-      if (file.uploadedBy !== userId) {
-        return res.status(403).json({ success: false, message: 'Access denied' });
-      }
-
-      // Delete file record from database first
-      await storage.deleteFile(fileId);
-
-      // Delete file from disk (safe to do after DB delete)
+  app.patch(
+    "/api/sourcing/sheets/:rowIndex/product-review",
+    isAuthenticated,
+    async (req, res) => {
       try {
-        if (fs.existsSync(file.filePath)) {
-          fs.unlinkSync(file.filePath);
-        }
-      } catch (diskError) {
-        // Log but don't fail the request - file record is already deleted
-        console.warn('⚠️ Warning: Failed to delete file from disk:', diskError);
-      }
+        const rowIndex = parseInt(req.params.rowIndex);
+        const { productReview } = req.body;
 
-      res.json({
-        success: true,
-        message: 'File deleted successfully',
-      });
-    } catch (error) {
-      console.error('❌ Error deleting file:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to delete file',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
-
-  // Amazon SP-API Listing Creation (using only LWA tokens, no AWS credentials needed)
-  app.post('/api/purchasing/create-amazon-listing', isAuthenticated, async (req: any, res) => {
-    try {
-      // Check if user is admin (only admins can create Amazon listings)
-      const userRole = req.user?.claims?.role;
-      // if (userRole !== 'admin') {
-      //   return res.status(403).json({ 
-      //     message: 'Access denied. Admin role required to create Amazon listings.' 
-      //   });
-      // }
-
-      const { asin, productName, price, buyPrice, brand } = req.body;
-
-      if (!asin || !productName) {
-        return res.status(400).json({ 
-          message: 'ASIN and product name are required' 
-        });
-      }
-
-      if (!brand) {
-        return res.status(400).json({ 
-          message: 'Brand is required for SKU generation' 
-        });
-      }
-
-      if (!price) {
-        return res.status(400).json({ 
-          message: 'Price is required for SKU generation' 
-        });
-      }
-
-      // Generate SKU using pattern: Brand_BuyPrice_DATE_ASIN
-      const today = new Date();
-      const dateString = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
-      const cleanBrand = brand.replace(/[^a-zA-Z0-9]/g, ''); // Remove special characters
-      const cleanPrice = parseFloat(buyPrice.toString().replace(/[€,$]/g, '')).toFixed(2).replace('.', ''); // Remove currency and decimal
-      const generatedSku = `${cleanBrand}_${cleanPrice}_${dateString}_${asin}`;
-
-      console.log('🌐 Starting Amazon SP-API listing creation for:', {
-        asin,
-        brand,
-        productName: productName.substring(0, 50) + '...',
-        price,
-        buyPrice,
-        generatedSku,
-      });
-
-      console.log('📝 Generated SKU:', generatedSku);
-
-      // Step 1: Configuration for European marketplace
-      const marketplaceId = 'A1PA6795UKMFR9'; // Germany marketplace (primary for Europe)
-      
-      console.log('🔧 Initializing Amazon SP-API for European marketplace...');
-
-      // Step 2: Get product type using fetch-based Catalog Items API
-      const listingSku = generatedSku;
-
-      console.log('🔍 Step 2: Determining product type...');
-      let productType = 'LUGGAGE'; // Safe fallback product type
-      let catalogFailed = false;
-
-      // Try Catalog Items API using SDK (if permissions allow)
-      try {
-        console.log('🔍 Trying Catalog Items API SDK for ASIN:', asin);
-        
-        // SDK configuration for European marketplace with AWS + LWA credentials
-        const sdkConfig = {
-          basePath: 'https://sellingpartnerapi-eu.amazon.com', // Explicit European base path
-          region: 'eu-west-1' as const,
-          credentials: {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID!, // AWS IAM user credentials
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!, // AWS IAM user credentials
-            SELLING_PARTNER_APP_CLIENT_ID: process.env.AMAZON_SP_CLIENT_ID!,
-            SELLING_PARTNER_APP_CLIENT_SECRET: process.env.AMAZON_SP_CLIENT_SECRET!,
-          },
-          refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
-          options: {
-            auto_request_tokens: true,
-            auto_request_throttled: true,
-            use_sandbox: false,
-            endpoints_versions: {
-              'catalog': '2022-04-01'
-            }
-          }
-        };
-
-        // Initialize Catalog API client with SDK
-        const catalogClient = new CatalogItemsApiClient(sdkConfig);
-        
-        // Get catalog item information by ASIN using SDK
-        const catalogResponse = await catalogClient.getCatalogItem({
-          asin: asin,
-          marketplaceId: marketplaceId, // Use singular marketplaceId
-          includedData: ['productTypes', 'classifications']
-        });
-
-        // Extract data from AxiosResponse
-        const catalogData = catalogResponse.data;
-        if (catalogData?.asin === asin) {
-          console.log('📦 Catalog API SDK successful - extracting product type...');
-          
-          // Extract product type from SDK response
-          let detectedType = null;
-          
-          if (catalogData.productTypes && catalogData.productTypes.length > 0) {
-            detectedType = catalogData.productTypes[0];
-          } else if (catalogData.classifications?.item?.productType) {
-            detectedType = catalogData.classifications.item.productType;
-          }
-          
-          if (detectedType) {
-            productType = detectedType;
-            console.log('✅ Catalog API SDK: Detected product type:', productType);
-            catalogFailed = false;
-          }
-        }
-      } catch (error: any) {
-        console.error('❌ Catalog API SDK error:', error?.message || error);
-        if (error?.response?.status === 403) {
-          console.log('🔒 403 Error: Missing "Product Listing" role permission for Catalog API');
-          console.log('💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App');
-        }
-        catalogFailed = true;
-      }
-
-      // Fallback: Intelligent product type detection based on product name
-      if (catalogFailed || productType === 'LUGGAGE') {
-        console.log('🧠 Using intelligent product type detection for:', productName);
-        
-        const productNameLower = productName.toLowerCase();
-        
-        // Smart product type mapping based on keywords
-        if (productNameLower.includes('led') || productNameLower.includes('light') || productNameLower.includes('lamp') || productNameLower.includes('bulb')) {
-          productType = 'CE_LIGHTING';
-          console.log('💡 Detected lighting product, using CE_LIGHTING');
-        } else if (productNameLower.includes('cosmetic') || productNameLower.includes('makeup') || productNameLower.includes('beauty') || productNameLower.includes('skincare')) {
-          productType = 'BEAUTY';
-          console.log('💄 Detected beauty product, using BEAUTY');
-        } else if (productNameLower.includes('tool') || productNameLower.includes('drill') || productNameLower.includes('hammer') || productNameLower.includes('screwdriver')) {
-          productType = 'TOOLS';
-          console.log('🔨 Detected tool product, using TOOLS');
-        } else if (productNameLower.includes('home') || productNameLower.includes('kitchen') || productNameLower.includes('decoration') || productNameLower.includes('furniture')) {
-          productType = 'HOME';
-          console.log('🏠 Detected home product, using HOME');
-        } else if (productNameLower.includes('electronic') || productNameLower.includes('gadget') || productNameLower.includes('device') || productNameLower.includes('tech')) {
-          productType = 'CONSUMER_ELECTRONICS';
-          console.log('📱 Detected electronics, using CONSUMER_ELECTRONICS');
-        } else {
-          // Use safe generic types that work reliably with SP-API
-          const safeTypes = ['HOME', 'LUGGAGE', 'BEAUTY', 'TOOLS'];
-          productType = safeTypes[Math.floor(Math.random() * safeTypes.length)];
-          console.log('🎲 Using random safe product type:', productType);
-        }
-      }
-
-      // Step 3: Create the listing using fetch-based Listings API
-      console.log('📡 Step 3: Creating Amazon listing...');
-
-      try {
-        // Get LWA access token for listings API
-        const tokenResponse = await fetch('https://api.amazon.co.uk/auth/o2/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
-            client_id: process.env.AMAZON_SP_CLIENT_ID!,
-            client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
-          }),
-        });
-
-        if (!tokenResponse.ok) {
-          throw new Error(`Failed to get access token: ${tokenResponse.status}`);
+        if (isNaN(rowIndex) || rowIndex < 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid row index" });
         }
 
-        
-        const tokenResult = await tokenResponse.json();
-        const accessToken = tokenResult?.access_token || "";
-        console.log('✅ LWA access token:', tokenResult?.access_token);
-
-        // Prepare listing data
-        // const listingData: any = {
-        //   productType: productType,
-        //   requirements: 'LISTING',
-        //   attributes: {
-        //     condition_type: [{
-        //       value: 'new_new',
-        //       marketplace_id: marketplaceId,
-        //     }],
-        //     item_name: [{
-        //       value: productName,
-        //       marketplace_id: marketplaceId,
-        //     }],
-        //   },
-        // };
-
-        // Add price if provided
-        // const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
-        // if (!isNaN(priceValue)) {
-        //   listingData.attributes.list_price = [{
-        //     value: { Amount: priceValue, CurrencyCode: 'EUR' },
-        //     marketplace_id: marketplaceId,
-        //   }];
-        // }
-
-        const priceValue = parseFloat(String(price).replace(/[€,$]/g, '')) || 0;
-
-    let listingData: any;
-    if (productType === 'LUGGAGE') {
-      listingData = buildLuggagePayload({
-        sku: listingSku,
-        productName,
-        brand,
-        manufacturer: req.body.manufacturer || brand,
-        price: priceValue,
-        currency: req.body.currency || 'EUR',
-        color: req.body.color,
-        dimensions: req.body.dimensions, // optionally send dimensions in req.body
-        material: req.body.material,
-        packageDimensions: req.body.packageDimensions,
-        packageWeight: req.body.packageWeight,
-        description: req.body.description,
-        ean: req.body.ean,
-        browseNode: req.body.browseNode,
-        bullets: req.body.bullets,
-      });
-    } else if (productType === 'HOME') {
-      listingData = buildHomePayload({
-        sku: listingSku,
-        productName,
-        brand,
-        manufacturer: req.body.manufacturer || brand,
-        modelNumber: req.body.modelNumber,
-        partNumber: req.body.partNumber,
-        ean: req.body.ean,
-        suggestedAsin: req.body.suggestedAsin,
-        description: req.body.description,
-        bullets: req.body.bullets,
-        countryOfOrigin: req.body.countryOfOrigin,
-        browseNode: req.body.browseNode,
-        size: req.body.size,
-        color: req.body.color,
-        numberOfItems: req.body.numberOfItems,
-        numberOfBoxes: req.body.numberOfBoxes,
-        packageWeight: req.body.packageWeight,
-        packageDimensions: req.body.packageDimensions,
-        batteriesRequired: req.body.batteriesRequired,
-        isFragile: req.body.isFragile,
-        price: priceValue,
-        currency: req.body.currency || 'EUR',
-        plugType: req.body.plugType,
-        voltageFrequency: req.body.voltageFrequency,
-      });
-    } else {
-      // fallback minimal listing (keeps your earlier minimal structure)
-      listingData = {
-        productType,
-        requirements: 'LISTING',
-        attributes: {
-          condition_type: [{ value: 'new_new' }],
-          item_name: [{ value: productName }],
-          list_price: [{ value_with_tax: priceValue, currency: 'EUR' }],
-        }
-      };
-    }
-
-        console.log('📦 Step 3: Request payload with product type "' + productType + '":', JSON.stringify(listingData, null, 2));
-
-        // Create listing using reliable fetch API
-        const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
-        const url = new URL(endpoint);
-        url.searchParams.append('marketplaceIds', marketplaceId);
-        url.searchParams.append('issueLocale', "en_US");
-
-
-        const listingResponse = await fetch(url.toString(), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-amz-access-token': accessToken,
-          },
-          body: JSON.stringify(listingData),
-        });
-
-        console.log("📝 Step 3: Amazon listing API response:", listingResponse);
-
-        let listingResult;
-        try {
-          listingResult = await listingResponse.json();
-        } catch (e) {
-          listingResult = await listingResponse.text();
-        }
-
-        console.log('📝 Step 3: Amazon listing API response status:', listingResponse.status);
-        console.log('📝 Step 3: Amazon listing API response:', JSON.stringify(listingResult, null, 2));
-
-        if (!listingResponse.ok) {
-          console.error('❌ Amazon listing creation failed with status:', listingResponse.status);
-          return res.status(500).json({
-            message: 'Failed to create Amazon listing',
-            status: listingResponse.status,
-            details: typeof listingResult === 'object' ? listingResult : 'Invalid response format',
+        if (!productReview || productReview.trim() === "") {
+          return res.status(400).json({
+            success: false,
+            message: "Product review value is required",
           });
         }
 
-        console.log('✅ Step 3: Amazon listing created successfully');
+        console.log(
+          `🔄 Updating Product Review for row ${rowIndex} to "${productReview}"`
+        );
+
+        const result = await googleSheetsService.updateProductReview(
+          rowIndex,
+          productReview
+        );
+
         res.json({
           success: true,
-          message: 'Amazon listing created successfully',
-          sku: listingSku,
-          marketplace: marketplaceId,
-          response: listingResult,
+          message: `Product review updated to "${productReview}" for row ${
+            rowIndex + 1
+          }`,
+          rowIndex,
+          newValue: productReview,
         });
-
-      } catch (listingError: any) {
-        console.error('❌ Amazon listing creation failed:', listingError?.message || listingError);
-        return res.status(500).json({
-          message: 'Failed to create Amazon listing',
-          error: listingError?.message || 'Unknown error',
-          details: listingError,
+      } catch (error) {
+        console.error("❌ Error updating Product Review:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to update Product Review in Google Sheets",
+          error: error instanceof Error ? error.message : "Unknown error",
         });
       }
-
-    } catch (error) {
-      console.error('❌ Error creating Amazon listing:', error);
-      res.status(500).json({
-        message: 'Failed to create Amazon listing',
-        error: error.message,
-      });
     }
-  });
+  );
 
+  // New endpoint to update Notes in Google Sheets
+  app.patch(
+    "/api/sourcing/sheets/:rowIndex/notes",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        const { notes } = req.body;
+
+        if (isNaN(rowIndex) || rowIndex < 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid row index" });
+        }
+
+        if (notes === undefined || notes === null) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Notes value is required" });
+        }
+
+        console.log(`🔄 Updating Notes for row ${rowIndex} to "${notes}"`);
+
+        const result = await googleSheetsService.updateNotes(rowIndex, notes);
+
+        res.json({
+          success: true,
+          message: `Notes updated for row ${rowIndex + 1}`,
+          rowIndex,
+          newValue: notes,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Notes:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to update Notes in Google Sheets",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // New endpoint to update Sourcing Method in Google Sheets
+  app.patch(
+    "/api/sourcing/sheets/:rowIndex/sourcing-method",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        const { sourcingMethod } = req.body;
+
+        if (isNaN(rowIndex) || rowIndex < 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid row index" });
+        }
+
+        if (!sourcingMethod || sourcingMethod.trim() === "") {
+          return res.status(400).json({
+            success: false,
+            message: "Sourcing method value is required",
+          });
+        }
+
+        console.log(
+          `🔄 Updating Sourcing Method for row ${rowIndex} to "${sourcingMethod}"`
+        );
+
+        const result = await googleSheetsService.updateSourcingMethod(
+          rowIndex,
+          sourcingMethod
+        );
+
+        res.json({
+          success: true,
+          message: `Sourcing method updated to "${sourcingMethod}" for row ${
+            rowIndex + 1
+          }`,
+          rowIndex,
+          newValue: sourcingMethod,
+        });
+      } catch (error) {
+        console.error("❌ Error updating Sourcing Method:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to update Sourcing Method in Google Sheets",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  app.post(
+    "/api/integrations/google-sheets/import",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const userId = req.user.claims.sub; // Use authenticated user
+        const { headers, items } = await readSourcingSheet();
+
+        console.log(`🔍 Found ${items.length} total rows in Google Sheets`);
+
+        // Header-Normalisierung (trim + lower)
+        const norm = (s: any) => String(s || "").trim();
+        const pick = (row: Record<string, string>, ...aliases: string[]) => {
+          for (const a of aliases) {
+            const key = Object.keys(row).find(
+              (k) => norm(k).toLowerCase() === norm(a).toLowerCase()
+            );
+            if (key) return row[key];
+          }
+          return "";
+        };
+
+        const cleaned = items
+          .map((raw, index) => {
+            // New simplified column mapping
+            const date = pick(raw, "Export Date (UTC yyyy-mm-dd)");
+            const asin = pick(raw, "ASIN");
+            const quantity = pick(raw, "Quantity");
+            const sourceUrl = pick(raw, "Source URL");
+            const tags = pick(raw, "Tags");
+            const notes = pick(raw, "All Notes");
+            const costPrice = parseMoneySmart(pick(raw, "Cost Price"));
+            const salePrice = parseMoneySmart(pick(raw, "Sale Price"));
+            const marketplace = pick(raw, "Sales Marketplace");
+            const estimatedSalesStr = pick(raw, "Estimated Sales");
+
+            // Skip completely empty rows
+            const allEmpty = [asin, sourceUrl, costPrice, salePrice].every(
+              (v) => !String(v || "").trim()
+            );
+            if (allEmpty) return null;
+
+            // ASIN is required
+            if (!String(asin || "").trim()) {
+              console.log(`⚠️ Row ${index + 2}: Skipping - no ASIN`);
+              return null;
+            }
+
+            // Parse numeric values safely
+            const estimatedSalesNum = parseNumericValue(estimatedSalesStr);
+            const profit = salePrice - costPrice;
+
+            // Generate a simple product name from ASIN if not available
+            const productName = `Product ${String(asin).trim()}`;
+
+            return {
+              datum: date ? new Date(date) : new Date(),
+              imageUrl: null,
+              brand: null, // Not available in simplified format
+              productName: productName,
+              asin: String(asin).trim(),
+              eanBarcode: null,
+              sourceUrl: sourceUrl || null,
+              amazonUrl: null,
+              costPrice: costPrice.toString(),
+              salePrice: salePrice.toString(),
+              profit: profit.toString(),
+              profitMargin:
+                salePrice > 0 ? ((profit / salePrice) * 100).toString() : "0",
+              roi:
+                costPrice > 0 ? ((profit / costPrice) * 100).toString() : "0",
+              estimatedSales: estimatedSalesNum?.toString() || null,
+              fbaSellerCount: null,
+              fbmSellerCount: null,
+              productReview: null,
+              notes:
+                [
+                  notes,
+                  quantity ? `Menge: ${quantity}` : null,
+                  tags ? `Tags: ${tags}` : null,
+                  marketplace ? `Marktplatz: ${marketplace}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ") || null,
+              sourcingMethod: "google-sheets-simplified",
+              submittedBy: userId,
+              status: "new",
+            };
+          })
+          .filter(Boolean) as any[];
+
+        console.log(`✅ Processed ${cleaned.length} valid rows`);
+
+        let importedCount = 0;
+        const errors: string[] = [];
+
+        // Save each item to database
+        for (let i = 0; i < cleaned.length; i++) {
+          const item = cleaned[i];
+          const rowNumber = i + 2; // +2 because we skipped header and are 1-indexed
+
+          try {
+            // Check if ASIN already exists to avoid duplicates
+            const existingSourcing = await storage.getSourcingByAsin(item.asin);
+            if (existingSourcing) {
+              console.log(
+                `⚠️ Row ${rowNumber}: Skipping duplicate ASIN ${item.asin}`
+              );
+              continue;
+            }
+
+            // Save to database
+            await storage.createSourcing(item);
+            importedCount++;
+            console.log(
+              `✅ Row ${rowNumber}: Imported ${item.productName} (${item.asin})`
+            );
+          } catch (error) {
+            console.error(
+              `❌ Row ${rowNumber}: Error saving ${item.productName}:`,
+              error
+            );
+            errors.push(
+              `Zeile ${rowNumber}: ${
+                error instanceof Error ? error.message : "Unbekannter Fehler"
+              }`
+            );
+          }
+        }
+
+        // Log activity
+        await storage.logActivity({
+          userId,
+          action: "google_sheets_import",
+          entityType: "sourcing",
+          entityId: "bulk_import",
+          description: `Google Sheets Import: ${importedCount} Deals importiert`,
+        });
+
+        console.log(
+          `🎉 Import completed: ${importedCount}/${cleaned.length} items saved`
+        );
+
+        // Verify data was saved
+        const allSourcing = await storage.getSourcing({ limit: 100 });
+        console.log(
+          `📊 Database now contains ${allSourcing.length} sourcing items`
+        );
+
+        res.json({
+          success: true,
+          message: `Import abgeschlossen: ${importedCount} von ${cleaned.length} Zeilen importiert`,
+          importedRows: importedCount,
+          totalRows: cleaned.length,
+          skippedDuplicates: cleaned.length - importedCount - errors.length,
+          databaseCount: allSourcing.length,
+          errors: errors.slice(0, 10), // Limit errors to first 10
+        });
+      } catch (e: any) {
+        console.error("❌ Google Sheets import error:", e);
+        res.status(500).json({
+          success: false,
+          message: `Google Sheets Import fehlgeschlagen: ${e?.message || e}`,
+          errors: [String(e?.message || e)],
+        });
+      }
+    }
+  );
+
+  app.post(
+    "/api/integrations/keepa/buybox",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const { asin } = req.body;
+
+        // Mock Keepa API call for BuyBox data
+        setTimeout(() => {
+          res.json({
+            success: true,
+            asin,
+            buyBox: {
+              current: (Math.random() * 100 + 50).toFixed(2),
+              avg90Days: (Math.random() * 100 + 50).toFixed(2),
+              currency: "EUR",
+            },
+            lastUpdated: new Date().toISOString(),
+          });
+        }, 1000);
+      } catch (error) {
+        res.status(500).json({ message: "Keepa API call failed" });
+      }
+    }
+  );
+
+  // File upload endpoints for sourcing items
+  app.post(
+    "/api/sourcing/files/upload",
+    isAuthenticated,
+    upload.single("file"),
+    async (req: any, res) => {
+      try {
+        if (!req.file) {
+          return res
+            .status(400)
+            .json({ success: false, message: "No file uploaded" });
+        }
+
+        const { rowIndex, asin } = req.body;
+        const userId = req.user.claims.sub;
+
+        if (!rowIndex || !asin) {
+          return res.status(400).json({
+            success: false,
+            message: "Row index and ASIN are required",
+          });
+        }
+
+        const fileInfo = {
+          rowIndex: parseInt(rowIndex),
+          asin,
+          originalName: req.file.originalname,
+          fileName: req.file.filename,
+          filePath: req.file.path,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          uploadedBy: userId,
+        };
+
+        const savedFile = await storage.saveFileInfo(fileInfo);
+
+        res.json({
+          success: true,
+          message: "File uploaded successfully",
+          file: savedFile,
+        });
+      } catch (error) {
+        console.error("❌ Error uploading file:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to upload file",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // Get files for a specific row
+  app.get(
+    "/api/sourcing/files/:rowIndex",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const rowIndex = parseInt(req.params.rowIndex);
+        const userId = req.user.claims.sub;
+
+        if (isNaN(rowIndex)) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid row index" });
+        }
+
+        // Get all files for this row
+        const files = await storage.getFilesByRowIndex(rowIndex);
+
+        // Filter files to only include those uploaded by the current user
+        const userFiles = files.filter((file) => file.uploadedBy === userId);
+
+        res.json({
+          success: true,
+          files: userFiles,
+        });
+      } catch (error) {
+        console.error("❌ Error fetching files:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch files",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // Download file
+  app.get(
+    "/api/sourcing/files/download/:fileId",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const fileId = req.params.fileId;
+        const userId = req.user.claims.sub;
+        const file = await storage.getFileById(fileId);
+
+        if (!file) {
+          return res
+            .status(404)
+            .json({ success: false, message: "File not found" });
+        }
+
+        // Check if user owns this file
+        if (file.uploadedBy !== userId) {
+          return res
+            .status(403)
+            .json({ success: false, message: "Access denied" });
+        }
+
+        if (!fs.existsSync(file.filePath)) {
+          return res
+            .status(404)
+            .json({ success: false, message: "File not found on disk" });
+        }
+
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${file.originalName}"`
+        );
+        res.setHeader("Content-Type", file.mimeType);
+        res.sendFile(path.resolve(file.filePath));
+      } catch (error) {
+        console.error("❌ Error downloading file:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to download file",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // Delete file
+  app.delete(
+    "/api/sourcing/files/:fileId",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        const fileId = req.params.fileId;
+        const userId = req.user.claims.sub;
+        const file = await storage.getFileById(fileId);
+
+        if (!file) {
+          return res
+            .status(404)
+            .json({ success: false, message: "File not found" });
+        }
+
+        // Check if user owns this file
+        if (file.uploadedBy !== userId) {
+          return res
+            .status(403)
+            .json({ success: false, message: "Access denied" });
+        }
+
+        // Delete file record from database first
+        await storage.deleteFile(fileId);
+
+        // Delete file from disk (safe to do after DB delete)
+        try {
+          if (fs.existsSync(file.filePath)) {
+            fs.unlinkSync(file.filePath);
+          }
+        } catch (diskError) {
+          // Log but don't fail the request - file record is already deleted
+          console.warn(
+            "⚠️ Warning: Failed to delete file from disk:",
+            diskError
+          );
+        }
+
+        res.json({
+          success: true,
+          message: "File deleted successfully",
+        });
+      } catch (error) {
+        console.error("❌ Error deleting file:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to delete file",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // Amazon SP-API Listing Creation (using only LWA tokens, no AWS credentials needed)
+  app.post(
+    "/api/purchasing/create-amazon-listing",
+    isAuthenticated,
+    async (req: any, res) => {
+      try {
+        // Check if user is admin (only admins can create Amazon listings)
+        const userRole = req.user?.claims?.role;
+        // if (userRole !== 'admin') {
+        //   return res.status(403).json({
+        //     message: 'Access denied. Admin role required to create Amazon listings.'
+        //   });
+        // }
+
+        const { asin, productName, price, buyPrice, brand } = req.body;
+
+        if (!asin || !productName) {
+          return res.status(400).json({
+            message: "ASIN and product name are required",
+          });
+        }
+
+        if (!brand) {
+          return res.status(400).json({
+            message: "Brand is required for SKU generation",
+          });
+        }
+
+        if (!price) {
+          return res.status(400).json({
+            message: "Price is required for SKU generation",
+          });
+        }
+
+        // Generate SKU using pattern: Brand_BuyPrice_DATE_ASIN
+        const today = new Date();
+        const dateString = today.toISOString().split("T")[0].replace(/-/g, ""); // YYYYMMDD format
+        const cleanBrand = brand.replace(/[^a-zA-Z0-9]/g, ""); // Remove special characters
+        const cleanPrice = parseFloat(buyPrice.toString().replace(/[€,$]/g, ""))
+          .toFixed(2)
+          .replace(".", ""); // Remove currency and decimal
+        const generatedSku = `${cleanBrand}_${cleanPrice}_${dateString}_${asin}`;
+
+        console.log("🌐 Starting Amazon SP-API listing creation for:", {
+          asin,
+          brand,
+          productName: productName.substring(0, 50) + "...",
+          price,
+          buyPrice,
+          generatedSku,
+        });
+
+        console.log("📝 Generated SKU:", generatedSku);
+
+        // Step 1: Configuration for European marketplace
+        const marketplaceId = "A1PA6795UKMFR9"; // Germany marketplace (primary for Europe)
+
+        console.log(
+          "🔧 Initializing Amazon SP-API for European marketplace..."
+        );
+
+        // Step 2: Get product type using fetch-based Catalog Items API
+        const listingSku = generatedSku;
+
+        console.log("🔍 Step 2: Determining product type...");
+        let productType = "LUGGAGE"; // Safe fallback product type
+        let catalogFailed = false;
+
+        // Try Catalog Items API using SDK (if permissions allow)
+        try {
+          console.log("🔍 Trying Catalog Items API SDK for ASIN:", asin);
+
+          // SDK configuration for European marketplace with AWS + LWA credentials
+          const sdkConfig = {
+            basePath: "https://sellingpartnerapi-eu.amazon.com", // Explicit European base path
+            region: "eu-west-1" as const,
+            credentials: {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID!, // AWS IAM user credentials
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!, // AWS IAM user credentials
+              SELLING_PARTNER_APP_CLIENT_ID: process.env.AMAZON_SP_CLIENT_ID!,
+              SELLING_PARTNER_APP_CLIENT_SECRET:
+                process.env.AMAZON_SP_CLIENT_SECRET!,
+            },
+            refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
+            options: {
+              auto_request_tokens: true,
+              auto_request_throttled: true,
+              use_sandbox: false,
+              endpoints_versions: {
+                catalog: "2022-04-01",
+              },
+            },
+          };
+
+          // Initialize Catalog API client with SDK
+          const catalogClient = new CatalogItemsApiClient(sdkConfig);
+
+          // Get catalog item information by ASIN using SDK
+          const catalogResponse = await catalogClient.getCatalogItem({
+            asin: asin,
+            marketplaceId: marketplaceId, // Use singular marketplaceId
+            includedData: ["productTypes", "classifications"],
+          });
+
+          // Extract data from AxiosResponse
+          const catalogData = catalogResponse.data;
+          if (catalogData?.asin === asin) {
+            console.log(
+              "📦 Catalog API SDK successful - extracting product type..."
+            );
+
+            // Extract product type from SDK response
+            let detectedType = null;
+
+            if (
+              catalogData.productTypes &&
+              catalogData.productTypes.length > 0
+            ) {
+              detectedType = catalogData.productTypes[0];
+            } else if (catalogData.classifications?.item?.productType) {
+              detectedType = catalogData.classifications.item.productType;
+            }
+
+            if (detectedType) {
+              productType = detectedType;
+              console.log(
+                "✅ Catalog API SDK: Detected product type:",
+                productType
+              );
+              catalogFailed = false;
+            }
+          }
+        } catch (error: any) {
+          console.error("❌ Catalog API SDK error:", error?.message || error);
+          if (error?.response?.status === 403) {
+            console.log(
+              '🔒 403 Error: Missing "Product Listing" role permission for Catalog API'
+            );
+            console.log(
+              '💡 Solution: Add "Product Listing" role in Seller Central → Apps & Services → Your App'
+            );
+          }
+          catalogFailed = true;
+        }
+
+        // Fallback: Intelligent product type detection based on product name
+        // if (catalogFailed || productType === 'LUGGAGE') {
+        //   console.log('🧠 Using intelligent product type detection for:', productName);
+
+        //   const productNameLower = productName.toLowerCase();
+
+        //   // Smart product type mapping based on keywords
+        //   if (productNameLower.includes('led') || productNameLower.includes('light') || productNameLower.includes('lamp') || productNameLower.includes('bulb')) {
+        //     productType = 'CE_LIGHTING';
+        //     console.log('💡 Detected lighting product, using CE_LIGHTING');
+        //   } else if (productNameLower.includes('cosmetic') || productNameLower.includes('makeup') || productNameLower.includes('beauty') || productNameLower.includes('skincare')) {
+        //     productType = 'BEAUTY';
+        //     console.log('💄 Detected beauty product, using BEAUTY');
+        //   } else if (productNameLower.includes('tool') || productNameLower.includes('drill') || productNameLower.includes('hammer') || productNameLower.includes('screwdriver')) {
+        //     productType = 'TOOLS';
+        //     console.log('🔨 Detected tool product, using TOOLS');
+        //   } else if (productNameLower.includes('home') || productNameLower.includes('kitchen') || productNameLower.includes('decoration') || productNameLower.includes('furniture')) {
+        //     productType = 'HOME';
+        //     console.log('🏠 Detected home product, using HOME');
+        //   } else if (productNameLower.includes('electronic') || productNameLower.includes('gadget') || productNameLower.includes('device') || productNameLower.includes('tech')) {
+        //     productType = 'CONSUMER_ELECTRONICS';
+        //     console.log('📱 Detected electronics, using CONSUMER_ELECTRONICS');
+        //   } else {
+        //     // Use safe generic types that work reliably with SP-API
+        //     const safeTypes = ['HOME', 'LUGGAGE', 'BEAUTY', 'TOOLS'];
+        //     productType = safeTypes[Math.floor(Math.random() * safeTypes.length)];
+        //     console.log('🎲 Using random safe product type:', productType);
+        //   }
+        // }
+
+        // Step 3: Create the listing using fetch-based Listings API
+        console.log("📡 Step 3: Creating Amazon listing...");
+
+        try {
+          // Get LWA access token for listings API
+          const tokenResponse = await fetch(
+            "https://api.amazon.co.uk/auth/o2/token",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                grant_type: "refresh_token",
+                refresh_token: process.env.AMAZON_SP_REFRESH_TOKEN!,
+                client_id: process.env.AMAZON_SP_CLIENT_ID!,
+                client_secret: process.env.AMAZON_SP_CLIENT_SECRET!,
+              }),
+            }
+          );
+
+          if (!tokenResponse.ok) {
+            throw new Error(
+              `Failed to get access token: ${tokenResponse.status}`
+            );
+          }
+
+          const tokenResult = await tokenResponse.json();
+          const accessToken = tokenResult?.access_token || "";
+          console.log("✅ LWA access token:", tokenResult?.access_token);
+
+          // Prepare listing data
+          // const listingData: any = {
+          //   productType: productType,
+          //   requirements: 'LISTING',
+          //   attributes: {
+          //     condition_type: [{
+          //       value: 'new_new',
+          //       marketplace_id: marketplaceId,
+          //     }],
+          //     item_name: [{
+          //       value: productName,
+          //       marketplace_id: marketplaceId,
+          //     }],
+          //   },
+          // };
+
+          // Add price if provided
+          // const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
+          // if (!isNaN(priceValue)) {
+          //   listingData.attributes.list_price = [{
+          //     value: { Amount: priceValue, CurrencyCode: 'EUR' },
+          //     marketplace_id: marketplaceId,
+          //   }];
+          // }
+
+          const priceValue =
+            parseFloat(String(price).replace(/[€,$]/g, "")) || 0;
+
+          let listingData: any;
+          if (productType === "LUGGAGE") {
+            listingData = {
+              productType: "LUGGAGE",
+              requirements: "LISTING",
+              attributes: {
+                item_name: [
+                  {
+                    value: "TravelPro Expandable Rolling Suitcase 55cm",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                brand: [
+                  {
+                    value: "TravelPro",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                manufacturer: [
+                  {
+                    value: "TravelPro",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                condition_type: [
+                  {
+                    value: "new_new",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                list_price: [
+                  {
+                    value_with_tax: 29.99,
+                    currency: "EUR",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                color: [
+                  {
+                    value: "Black",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_dimensions: [
+                  {
+                    length: {
+                      value: 200,
+                      unit: "centimeters",
+                    },
+                    width: {
+                      value: 150,
+                      unit: "centimeters",
+                    },
+                    height: {
+                      value: 100,
+                      unit: "centimeters",
+                    },
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                bullet_point: [
+                  {
+                    value: "Lightweight durable polycarbonate shell",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                  {
+                    value: "Fits most airline cabin size restrictions",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                  {
+                    value: "360° spinner wheels for easy maneuvering",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                batteries_required: [
+                  {
+                    value: "false",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                material: [
+                  {
+                    value: "Canvas",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                country_of_origin: [
+                  {
+                    value: "DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                style: [
+                  {
+                    value:
+                      "Central Hardside Expandable Luggage with Spinner Wheels",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                model_name: [
+                  {
+                    // "language_tag": "de_DE",
+                    value: "Winfield",
+                  },
+                ],
+                department: [
+                  {
+                    value: "Unisex",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_package_dimensions: [
+                  {
+                    length: {
+                      value: 200,
+                      unit: "millimeters",
+                    },
+                    width: {
+                      value: 150,
+                      unit: "millimeters",
+                    },
+                    height: {
+                      value: 100,
+                      unit: "millimeters",
+                    },
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                merchant_suggested_asin: [
+                  {
+                    value: "B0C12345XY",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                model_number: [
+                  {
+                    value: "LV-PLANT-1350",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                supplier_declared_dg_hz_regulation: [
+                  {
+                    value: "not_applicable",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_package_weight: [
+                  {
+                    value: 500,
+                    unit: "grams",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                product_description: [
+                  {
+                    value:
+                      "Energy-efficient LED grow light for indoor plants with 1350 lumens.",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                recommended_browse_nodes: [
+                  {
+                    value: "123456789",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                externally_assigned_product_identifier: [
+                  {
+                    type: "EAN",
+                    value: "4058075812345",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+              },
+            };
+          } else if (productType === "HOME") {
+            listingData = {
+              productType: "HOME",
+              requirements: "LISTING",
+              attributes: {
+                item_name: [
+                  {
+                    value:
+                      "LEDVANCE LED Grow Light 1350 Lumen for Indoor Plants",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                brand: [
+                  {
+                    value: "Ledvance",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                manufacturer: [
+                  {
+                    value: "Ledvance GmbH",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                model_number: [
+                  {
+                    value: "LV-PLANT-1350",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                part_number: [
+                  {
+                    value: "1350PLANT",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                externally_assigned_product_identifier: [
+                  {
+                    type: "EAN",
+                    value: "4058075812345",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                merchant_suggested_asin: [
+                  {
+                    value: "B0C12345XY",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                product_description: [
+                  {
+                    value:
+                      "Energy-efficient LED grow light for indoor plants with 1350 lumens.",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                bullet_point: [
+                  {
+                    value: "1350 lumen LED light for indoor gardening",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                  {
+                    value: "Energy-efficient with long lifespan",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                  {
+                    value: "Suitable for herbs, flowers, and vegetables",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                country_of_origin: [
+                  {
+                    value: "DE",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                recommended_browse_nodes: [
+                  {
+                    value: "123456789",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                supplier_declared_dg_hz_regulation: [
+                  {
+                    value: "not_applicable",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                size: [
+                  {
+                    value: "Medium",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                color: [
+                  {
+                    value: "White",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                number_of_items: [
+                  {
+                    value: "1",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                number_of_boxes: [
+                  {
+                    value: "1",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                item_package_weight: [
+                  {
+                    value: 500,
+                    unit: "grams",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                item_package_dimensions: [
+                  {
+                    length: {
+                      value: 200,
+                      unit: "millimeters",
+                    },
+                    width: {
+                      value: 150,
+                      unit: "millimeters",
+                    },
+                    height: {
+                      value: 100,
+                      unit: "millimeters",
+                    },
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                batteries_required: [
+                  {
+                    value: "false",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                is_fragile: [
+                  {
+                    value: "false",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                list_price: [
+                  {
+                    value_with_tax: 29.99,
+                    currency: "EUR",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                power_plug_type: [
+                  {
+                    value: "no_plug",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+                accepted_voltage_frequency: [
+                  {
+                    value: "100v_120v_50hz",
+                    marketplace_id: "A1PA6795UKMFR9",
+                  },
+                ],
+              },
+            };
+          } else {
+            // fallback minimal listing (keeps your earlier minimal structure)
+            listingData = {
+              productType: "LUGGAGE",
+              requirements: "LISTING",
+              attributes: {
+                item_name: [
+                  {
+                    value: "TravelPro Expandable Rolling Suitcase 55cm",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                brand: [
+                  {
+                    value: "TravelPro",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                manufacturer: [
+                  {
+                    value: "TravelPro",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                condition_type: [
+                  {
+                    value: "new_new",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                list_price: [
+                  {
+                    value_with_tax: 29.99,
+                    currency: "EUR",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                color: [
+                  {
+                    value: "Black",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_dimensions: [
+                  {
+                    length: {
+                      value: 200,
+                      unit: "centimeters",
+                    },
+                    width: {
+                      value: 150,
+                      unit: "centimeters",
+                    },
+                    height: {
+                      value: 100,
+                      unit: "centimeters",
+                    },
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                bullet_point: [
+                  {
+                    value: "Lightweight durable polycarbonate shell",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                  {
+                    value: "Fits most airline cabin size restrictions",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                  {
+                    value: "360° spinner wheels for easy maneuvering",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                batteries_required: [
+                  {
+                    value: "false",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                material: [
+                  {
+                    value: "Canvas",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                country_of_origin: [
+                  {
+                    value: "DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                style: [
+                  {
+                    value:
+                      "Central Hardside Expandable Luggage with Spinner Wheels",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                model_name: [
+                  {
+                    // "language_tag": "de_DE",
+                    value: "Winfield",
+                  },
+                ],
+                department: [
+                  {
+                    value: "Unisex",
+                    // "language_tag": "de_DE",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_package_dimensions: [
+                  {
+                    length: {
+                      value: 200,
+                      unit: "millimeters",
+                    },
+                    width: {
+                      value: 150,
+                      unit: "millimeters",
+                    },
+                    height: {
+                      value: 100,
+                      unit: "millimeters",
+                    },
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                merchant_suggested_asin: [
+                  {
+                    value: "B0C12345XY",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                model_number: [
+                  {
+                    value: "LV-PLANT-1350",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                supplier_declared_dg_hz_regulation: [
+                  {
+                    value: "not_applicable",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                item_package_weight: [
+                  {
+                    value: 500,
+                    unit: "grams",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                product_description: [
+                  {
+                    value:
+                      "Energy-efficient LED grow light for indoor plants with 1350 lumens.",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                recommended_browse_nodes: [
+                  {
+                    value: "123456789",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+                externally_assigned_product_identifier: [
+                  {
+                    type: "EAN",
+                    value: "4058075812345",
+                    // "marketplace_id": "A1PA6795UKMFR9"
+                  },
+                ],
+              },
+            };
+          }
+
+          console.log(
+            '📦 Step 3: Request payload with product type "' +
+              productType +
+              '":',
+            JSON.stringify(listingData, null, 2)
+          );
+
+          // Create listing using reliable fetch API
+          const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
+          const url = new URL(endpoint);
+          url.searchParams.append("marketplaceIds", marketplaceId);
+          url.searchParams.append("issueLocale", "en_US");
+
+          const listingResponse = await fetch(url.toString(), {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "x-amz-access-token": accessToken,
+            },
+            body: JSON.stringify(listingData),
+          });
+
+          console.log(
+            "📝 Step 3: Amazon listing API response:",
+            listingResponse
+          );
+
+          let listingResult;
+          try {
+            listingResult = await listingResponse.json();
+          } catch (e) {
+            listingResult = await listingResponse.text();
+          }
+
+          console.log(
+            "📝 Step 3: Amazon listing API response status:",
+            listingResponse.status
+          );
+          console.log(
+            "📝 Step 3: Amazon listing API response:",
+            JSON.stringify(listingResult, null, 2)
+          );
+
+          if (!listingResponse.ok) {
+            console.error(
+              "❌ Amazon listing creation failed with status:",
+              listingResponse.status
+            );
+            return res.status(500).json({
+              message: "Failed to create Amazon listing",
+              status: listingResponse.status,
+              details:
+                typeof listingResult === "object"
+                  ? listingResult
+                  : "Invalid response format",
+            });
+          }
+
+          console.log("✅ Step 3: Amazon listing created successfully");
+          res.json({
+            success: true,
+            message: "Amazon listing created successfully",
+            sku: listingSku,
+            marketplace: marketplaceId,
+            response: listingResult,
+          });
+        } catch (listingError: any) {
+          console.error(
+            "❌ Amazon listing creation failed:",
+            listingError?.message || listingError
+          );
+          return res.status(500).json({
+            message: "Failed to create Amazon listing",
+            error: listingError?.message || "Unknown error",
+            details: listingError,
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error creating Amazon listing:", error);
+        res.status(500).json({
+          message: "Failed to create Amazon listing",
+          error: error.message,
+        });
+      }
+    }
+  );
 
   const httpServer = createServer(app);
   return httpServer;
