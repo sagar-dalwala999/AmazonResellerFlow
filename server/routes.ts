@@ -12,6 +12,8 @@ import { z } from "zod";
 
 // Amazon SP-API SDK imports (for catalog items only)
 import { CatalogItemsApiClient } from '@scaleleap/selling-partner-api-sdk';
+import { buildLuggagePayload } from "./utils/productSchemas/Luggage";
+import { buildHomePayload } from "./utils/productSchemas/Home";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
@@ -1810,33 +1812,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
           throw new Error(`Failed to get access token: ${tokenResponse.status}`);
         }
 
+        
         const tokenResult = await tokenResponse.json();
-        const accessToken = tokenResult.access_token;
+        const accessToken = tokenResult?.access_token || "";
+        console.log('✅ LWA access token:', tokenResult?.access_token);
 
         // Prepare listing data
-        const listingData: any = {
-          productType: productType,
-          requirements: 'LISTING',
-          attributes: {
-            condition_type: [{
-              value: 'new_new',
-              marketplace_id: marketplaceId,
-            }],
-            item_name: [{
-              value: productName,
-              marketplace_id: marketplaceId,
-            }],
-          },
-        };
+        // const listingData: any = {
+        //   productType: productType,
+        //   requirements: 'LISTING',
+        //   attributes: {
+        //     condition_type: [{
+        //       value: 'new_new',
+        //       marketplace_id: marketplaceId,
+        //     }],
+        //     item_name: [{
+        //       value: productName,
+        //       marketplace_id: marketplaceId,
+        //     }],
+        //   },
+        // };
 
         // Add price if provided
-        const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
-        if (!isNaN(priceValue)) {
-          listingData.attributes.list_price = [{
-            value: { Amount: priceValue, CurrencyCode: 'EUR' },
-            marketplace_id: marketplaceId,
-          }];
+        // const priceValue = parseFloat(price.toString().replace(/[€,$]/g, ''));
+        // if (!isNaN(priceValue)) {
+        //   listingData.attributes.list_price = [{
+        //     value: { Amount: priceValue, CurrencyCode: 'EUR' },
+        //     marketplace_id: marketplaceId,
+        //   }];
+        // }
+
+        const priceValue = parseFloat(String(price).replace(/[€,$]/g, '')) || 0;
+
+    let listingData: any;
+    if (productType === 'LUGGAGE') {
+      listingData = buildLuggagePayload({
+        sku: listingSku,
+        productName,
+        brand,
+        manufacturer: req.body.manufacturer || brand,
+        price: priceValue,
+        currency: req.body.currency || 'EUR',
+        color: req.body.color,
+        dimensions: req.body.dimensions, // optionally send dimensions in req.body
+        material: req.body.material,
+        packageDimensions: req.body.packageDimensions,
+        packageWeight: req.body.packageWeight,
+        description: req.body.description,
+        ean: req.body.ean,
+        browseNode: req.body.browseNode,
+        bullets: req.body.bullets,
+      });
+    } else if (productType === 'HOME') {
+      listingData = buildHomePayload({
+        sku: listingSku,
+        productName,
+        brand,
+        manufacturer: req.body.manufacturer || brand,
+        modelNumber: req.body.modelNumber,
+        partNumber: req.body.partNumber,
+        ean: req.body.ean,
+        suggestedAsin: req.body.suggestedAsin,
+        description: req.body.description,
+        bullets: req.body.bullets,
+        countryOfOrigin: req.body.countryOfOrigin,
+        browseNode: req.body.browseNode,
+        size: req.body.size,
+        color: req.body.color,
+        numberOfItems: req.body.numberOfItems,
+        numberOfBoxes: req.body.numberOfBoxes,
+        packageWeight: req.body.packageWeight,
+        packageDimensions: req.body.packageDimensions,
+        batteriesRequired: req.body.batteriesRequired,
+        isFragile: req.body.isFragile,
+        price: priceValue,
+        currency: req.body.currency || 'EUR',
+        plugType: req.body.plugType,
+        voltageFrequency: req.body.voltageFrequency,
+      });
+    } else {
+      // fallback minimal listing (keeps your earlier minimal structure)
+      listingData = {
+        productType,
+        requirements: 'LISTING',
+        attributes: {
+          condition_type: [{ value: 'new_new' }],
+          item_name: [{ value: productName }],
+          list_price: [{ value_with_tax: priceValue, currency: 'EUR' }],
         }
+      };
+    }
 
         console.log('📦 Step 3: Request payload with product type "' + productType + '":', JSON.stringify(listingData, null, 2));
 
@@ -1844,16 +1909,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const endpoint = `https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/${process.env.AMAZON_SP_SELLER_ID}/${listingSku}`;
         const url = new URL(endpoint);
         url.searchParams.append('marketplaceIds', marketplaceId);
+        url.searchParams.append('issueLocale', "en_US");
+
 
         const listingResponse = await fetch(url.toString(), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'x-amz-access-token': accessToken,
-            'Accept': 'application/json',
           },
           body: JSON.stringify(listingData),
         });
+
+        console.log("📝 Step 3: Amazon listing API response:", listingResponse);
 
         let listingResult;
         try {
