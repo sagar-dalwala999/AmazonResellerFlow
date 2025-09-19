@@ -2,129 +2,74 @@
 
 # 📄 Amazon Listing API — Implementation Notes
 
-This document explains the key changes made to the **Amazon Listing API integration**, focusing on how product type schemas are now handled.
+This document explains the **changes made to the Amazon Listing API integration** and highlights how product type and schema are handled for better compliance.
 
 ---
 
-## 1. Catalog Flow (No Change)
+## 1. Catalog API (No Change)
 
-* The **Catalog API call** remains the same.
-* We still attempt to fetch product details from Amazon (by ASIN) to detect the **product type** dynamically.
-* If Catalog API fails, fallback logic (keyword-based detection) is used.
-
----
-
-## 2. Access Token (No Change)
-
-* The **LWA token flow** (Login With Amazon) to retrieve an `access_token` for SP-API requests remains unchanged.
-* All listing requests still use the fresh access token obtained during this step.
+* Existing integration for fetching product details works without modification.
+* **Access token handling also remains unchanged.**
 
 ---
 
-## 3. Product Type Handling (Updated)
+## 2. Product Type Handling (Updated)
 
-* **Earlier:** Product type was either **hardcoded** (e.g., `"LUGGAGE"`) or guessed by keywords.
-* **Now:**
-
-  * Product type is determined using **Catalog API**.
-  * We no longer send arbitrary values — the type is **Amazon-defined**.
+* Previously, product type was **hardcoded** (e.g., `LUGGAGE`, `HOME`).
+* We now **validate product type** using the **Amazon Product Type API** to ensure correctness.
+* **Future Improvement:** This can be made **fully dynamic** by mapping product type directly from Catalog API → Product Type API.
 
 ---
 
-## 4. Product Type Schema (New)
+## 3. Product Type Schema
 
 * We now leverage the **Product Type Definitions API** to fetch schema for the detected product type.
-* Example:
+* Schema defines:
 
-  * If detected type = `HOME`, we fetch `HOME` schema.
-  * Schema defines exactly which attributes are **required** and their **data types**.
-
----
-
-## 5. Payload Construction (Updated)
-
-* **Earlier:** Payloads were minimal and generic.
-* **Now:** Payloads are constructed to **match Amazon’s schema** (per product type).
-* This ensures validation passes and listings are accepted.
+  * Which attributes are **required**.
+  * The **data types** and valid values.
 
 ---
 
-## 6. Static Data vs Dynamic Data
+## 4. Payload Construction (Updated)
 
-* **Static demo values** are used for now to satisfy schema requirements.
-* Once enough product metadata is available, these values can be mapped dynamically to schema fields.
+* **Earlier:** Payloads were minimal and generic → often rejected.
+* **Now:** Payloads are constructed to **match Amazon’s product type schema**.
+* This ensures validation passes and listings are **successfully created**.
 
 ---
 
-## 📊 Before vs After Example
+## 5. Static vs Dynamic Data
 
-### **Before (Minimal Payload)**
+* Currently, we are **using static values** (dimensions, weight, bullet points) to satisfy schema.
+* **Future:** Once product metadata is available, values will be mapped **dynamically** according to schema fields.
 
-```json
-{
-  "productType": "LUGGAGE",
-  "requirements": "LISTING",
-  "attributes": {
-    "condition_type": [
-      { "value": "new_new", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "item_name": [
-      { "value": "LEDVANCE LED Grow Light", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "list_price": [
-      { "value": { "Amount": 29.99, "CurrencyCode": "EUR" }, "marketplace_id": "A1PA6795UKMFR9" }
-    ]
-  }
-}
+---
+
+## 6. Before vs After
+
+| **Before (Minimal Payload)**                                                                                                                                                                                                                                                                                | **After (Schema-Based Payload — HOME Example)**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `json<br>{<br>  "productType": "LUGGAGE",<br>  "requirements": "LISTING",<br>  "attributes": {<br>    "condition_type": [{ "value": "new_new" }],<br>    "item_name": [{ "value": "LEDVANCE LED Grow Light" }],<br>    "list_price": [{ "value": { "Amount": 29.99, "CurrencyCode": "EUR" } }]<br>  }<br>}` | `json<br>{<br>  "productType": "HOME",<br>  "requirements": "LISTING",<br>  "attributes": {<br>    "item_name": [{ "value": "LEDVANCE LED Grow Light 1350 Lumen" }],<br>    "brand": [{ "value": "Ledvance" }],<br>    "manufacturer": [{ "value": "Ledvance GmbH" }],<br>    "model_number": [{ "value": "LV-PLANT-1350" }],<br>    "part_number": [{ "value": "1350PLANT" }],<br>    "externally_assigned_product_identifier": [{ "type": "EAN", "value": "4058075812345" }],<br>    "product_description": [{ "value": "Energy-efficient LED grow light with 1350 lumens." }],<br>    "bullet_point": [<br>      { "value": "1350 lumen LED light for indoor gardening" },<br>      { "value": "Energy-efficient with long lifespan" },<br>      { "value": "Suitable for herbs, flowers, and vegetables" }<br>    ],<br>    "country_of_origin": [{ "value": "DE" }],<br>    "list_price": [{ "value_with_tax": 29.99, "currency": "EUR" }],<br>    "item_package_weight": [{ "value": 500, "unit": "grams" }],<br>    "item_package_dimensions": [{<br>      "length": { "value": 200, "unit": "millimeters" },<br>      "width": { "value": 150, "unit": "millimeters" },<br>      "height": { "value": 100, "unit": "millimeters" }<br>    }],<br>    "batteries_required": [{ "value": "false" }]<br>  }<br>}` |
+
+---
+
+## 7. Flow Diagram
+
+The updated API flow:
+
+```
+Input Data → Catalog API → Product Type → Product Type Schema → Build Payload → Amazon Listing API
 ```
 
-## ⚠️ Problem: Too minimal → missing required attributes → listing often rejected.
-
 ---
 
-### **After (Schema-Based Payload — HOME Example)**
+## Summary
 
-```json
-{
-  "productType": "HOME",
-  "requirements": "LISTING",
-  "attributes": {
-    "item_name": [{ "value": "LEDVANCE LED Grow Light 1350 Lumen", "marketplace_id": "A1PA6795UKMFR9" }],
-    "brand": [{ "value": "Ledvance", "marketplace_id": "A1PA6795UKMFR9" }],
-    "manufacturer": [{ "value": "Ledvance GmbH", "marketplace_id": "A1PA6795UKMFR9" }],
-    "model_number": [{ "value": "LV-PLANT-1350", "marketplace_id": "A1PA6795UKMFR9" }],
-    "part_number": [{ "value": "1350PLANT", "marketplace_id": "A1PA6795UKMFR9" }],
-    "externally_assigned_product_identifier": [
-      { "type": "EAN", "value": "4058075812345", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "product_description": [
-      { "value": "Energy-efficient LED grow light with 1350 lumens.", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "bullet_point": [
-      { "value": "1350 lumen LED light for indoor gardening", "marketplace_id": "A1PA6795UKMFR9" },
-      { "value": "Energy-efficient with long lifespan", "marketplace_id": "A1PA6795UKMFR9" },
-      { "value": "Suitable for herbs, flowers, and vegetables", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "country_of_origin": [{ "value": "DE", "marketplace_id": "A1PA6795UKMFR9" }],
-    "list_price": [
-      { "value_with_tax": 29.99, "currency": "EUR", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "item_package_weight": [
-      { "value": 500, "unit": "grams", "marketplace_id": "A1PA6795UKMFR9" }
-    ],
-    "item_package_dimensions": [
-      {
-        "length": { "value": 200, "unit": "millimeters" },
-        "width": { "value": 150, "unit": "millimeters" },
-        "height": { "value": 100, "unit": "millimeters" },
-        "marketplace_id": "A1PA6795UKMFR9"
-      }
-    ],
-    "batteries_required": [{ "value": "false", "marketplace_id": "A1PA6795UKMFR9" }]
-  }
-}
-```
-
-## Now payload matches schema → higher success rate with Amazon Listing API.
+* ✅ Catalog API & access token handling → **no change**.
+* ✅ Product Type → **validated via Amazon API** (future: fully dynamic).
+* ✅ Product Type Schema → **fetched dynamically**.
+* ✅ Payload → **matches schema**, increasing acceptance rate.
+* ⚡ Static values for demo → **will be dynamic** in production.
 
 ---
